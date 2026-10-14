@@ -26,7 +26,7 @@ node_modules/          本机安装的依赖，忽略，不上传
 
 `npm test` 使用内存文件系统和假对话框检查真实主进程的设置分支，不操作实际系统启动项。`npm run test:watcher` 运行进程名称分类检查，不启动监控服务。`npm run test:ui` 使用假数据和独立 Electron 用户目录，不读取 Codex 账号，不代表生产账号连接或真实系统对话框已经端到端验证。
 
-CI 配置运行上述测试和监听器构建。首次上传前，CI 还没有在 GitHub 执行；本机通过不能替代云端结果。
+CI 运行上述测试和监听器构建。结果见本仓库 [Actions](https://github.com/bin19870223-netizen/token-glance/actions)；本机通过不能替代对应提交的云端结果。
 
 ## 资源测量
 
