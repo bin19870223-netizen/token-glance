@@ -38,6 +38,8 @@ CI 运行上述测试和监听器构建。结果见本仓库 [Actions](https://g
 
 ## 资源测量
 
+README 界面图可用 `node scripts/capture-docs.cjs` 重新生成。脚本在隔离的 Electron 目录中渲染当前 UI，使用示例额度和生成的数字采样，不连接 Codex、不读取真实 runtime 或会话，也不修改用户设置。图片写入 `docs/images/`，缓存写入 `work/docs-capture-runtime/`。中英文说明分别位于 `README.md` 和 `README.en.md`；应用界面目前仍为简体中文。
+
 启动工具后可运行：
 
 ```powershell
