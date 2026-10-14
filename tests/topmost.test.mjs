@@ -15,9 +15,9 @@ function fixture(t){
   t.after(guard.stop);
   return {dock,panel,guard,order,changes,disable:()=>enabled=false};
 }
-test('recovers every second even when the topmost flag is already true; panel stays above dock',t=>{
+test('idle checks do not continually promote windows or reset native hover tooltips',t=>{
   const f=fixture(t);t.mock.timers.tick(2000);
-  assert.deepEqual(f.order,['dock','panel','dock','panel']);assert.deepEqual(f.changes,[['dock',true],['panel',true]]);
+  assert.deepEqual(f.order,['dock','panel']);assert.deepEqual(f.changes,[['dock',true],['panel',true]]);
 });
 test('restores a lost flag and applies disabled setting without raising windows',t=>{
   const f=fixture(t);f.dock.topmost=false;f.guard.refresh();

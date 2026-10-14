@@ -1,7 +1,16 @@
 let current;
+const contents=new WeakMap();
 function render(state){
   current=state;HUD.applyTheme(state);document.body.classList.toggle('horizontal',!['left','right'].includes(state.settings.edge));
-  document.getElementById('agents').innerHTML=state.settings.agents.map(id=>{const p=state.providers[id];const r=p.primary?.remaining;return `<button class="agent ${state.pinned&&state.panelAgent===id?'active':''}" data-agent="${id}" aria-label="${p.name}，${r==null?'用量未连接':Math.round(r)+'% 剩余'}" aria-expanded="${state.pinned&&state.panelAgent===id}" title="${p.name} · ${HUD.statusLabel(p)}">${HUD.ring(p,state.settings)}${state.settings.showNumbers?`<span class="percent mono" style="--ring-color:${HUD.color(r)}">${r==null?'—':Math.round(r)+'%'}</span>`:''}</button>`;}).join('');
+  const keys=state.settings.agents.join(',');
+  if(agents.dataset.keys!==keys){agents.innerHTML=state.settings.agents.map(id=>`<button class="agent" data-agent="${id}"></button>`).join('');agents.dataset.keys=keys;}
+  for(const id of state.settings.agents){
+    const button=agents.querySelector(`[data-agent="${id}"]`),p=state.providers[id],r=p.primary?.remaining,active=state.pinned&&state.panelAgent===id;
+    button.classList.toggle('active',active);
+    for(const [key,value] of Object.entries({'aria-label':`${p.name}，${r==null?'用量未连接':Math.round(r)+'% 剩余'}`,'aria-expanded':String(active),title:`${p.name} · ${HUD.statusLabel(p)}`}))if(button.getAttribute(key)!==value)button.setAttribute(key,value);
+    const content=HUD.ring(p,state.settings)+(state.settings.showNumbers?`<span class="percent mono" style="--ring-color:${HUD.color(r)}">${r==null?'—':Math.round(r)+'%'}</span>`:'');
+    if(contents.get(button)!==content){button.innerHTML=content;contents.set(button,content);}
+  }
 }
 const agents=document.getElementById('agents');
 agents.addEventListener('mouseover',e=>{const b=e.target.closest('[data-agent]');if(b&&!b.contains(e.relatedTarget))window.hud.action('hover',b.dataset.agent);});

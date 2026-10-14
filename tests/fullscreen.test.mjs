@@ -27,6 +27,18 @@ test('handles fragmented output and ignores invalid protocol lines',t=>{
   f.child.stdout.write('top\r\n');assert.equal(f.monitor.shouldYield(),false);
   f.send('arbitrary data');assert.equal(f.monitor.shouldYield(),false);
 });
+test('coverage requests restore desktop overlays but never interrupt exclusive fullscreen',t=>{
+  let restored=0;const f=fixture(t,()=>restored++);
+  f.send('restore');assert.equal(restored,0);
+  f.send('desktop');f.send('restore');assert.equal(restored,2);
+  f.send('exclusive');f.send('restore');assert.equal(restored,3);
+});
+test('only owned overlay handles are sent to the native coverage detector',t=>{
+  const f=fixture(t);let input='';f.child.stdin.on('data',data=>input+=data);
+  const handle=Buffer.alloc(8);handle.writeBigUInt64LE(123n);
+  f.monitor.setWindows([{isDestroyed:()=>false,getNativeWindowHandle:()=>handle},null,{isDestroyed:()=>true}]);
+  assert.equal(input,'windows:123\n');
+});
 test('detector failure yields safely and stop closes its input and process',t=>{
   const f=fixture(t);f.send('desktop');f.child.emit('error',Error('unavailable'));assert.equal(f.monitor.shouldYield(),true);
   f.send('desktop');f.child.emit('exit',1);assert.equal(f.monitor.shouldYield(),true);

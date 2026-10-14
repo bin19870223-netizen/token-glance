@@ -10,23 +10,35 @@ const source=fs.readFileSync(new URL('../src/main.cjs',import.meta.url),'utf8');
 const root=path.resolve('src');
 
 function fixture(){
-  const handlers={},files=new Map(),login=[],hotkeys=[],messages=[];
+  const handlers={},files=new Map(),login=[],hotkeys=[],messages=[],timers=[],closes=[];
+  let cursor={x:10,y:10};
   const settingsFile=path.resolve(root,'../runtime/settings.json');
   files.set(settingsFile,JSON.stringify(sanitizeSettings({theme:'light',edge:'bottom-right',edgeGap:25,ringSize:44,opacity:70,startupMode:'agents',hotkey:'Alt+G',agents:['claude'],alertEnabled:true,watchProcesses:{claude:'custom.exe'}})));
   const usageFile=path.resolve(root,'../runtime/usage.json'),sourcesFile=path.resolve(root,'../runtime/sources.json');
   files.set(usageFile,'{"lifetimeTokens":1234}');files.set(sourcesFile,JSON.stringify({claude:path.join(root,'fixtures','usage.json')}));
   let destroyed=false,response=0,yieldFullscreen=false;
   const window=()=>({webContents:{mainFrame:{},send(){}},isDestroyed:()=>destroyed});
-  const preferences=window(),dock=window();Object.assign(dock,{setBounds(){},setAlwaysOnTop(){},moveTop(){}});
+  const preferences=window(),dock=window(),panel=window();Object.assign(dock,{isVisible:()=>true,getBounds:()=>({x:0,y:0,width:60,height:60}),setBounds(){},setAlwaysOnTop(){},moveTop(){}});
+  Object.assign(panel,{isVisible:()=>true,getBounds:()=>({x:80,y:0,width:100,height:100}),close:()=>closes.push(true)});
   const fakeApp={setPath(){},setAppLogsPath(){},setName(){},setAppUserModelId(){},commandLine:{appendSwitch(){}},requestSingleInstanceLock:()=>false,quit(){},on(){},setLoginItemSettings:value=>login.push(value)};
   const area={x:0,y:0,width:1920,height:1040},display={id:1,workArea:area};
-  const electron={app:fakeApp,ipcMain:{handle:(name,fn)=>handlers[name]=fn},screen:{getAllDisplays:()=>[display],getPrimaryDisplay:()=>display},nativeTheme:{shouldUseDarkColors:false},globalShortcut:{unregisterAll(){},register:key=>{hotkeys.push(key);return true;}},dialog:{showMessageBox:async(owner,options)=>{messages.push({owner,options});return {response};}}};
+  const electron={app:fakeApp,ipcMain:{handle:(name,fn)=>handlers[name]=fn},screen:{getAllDisplays:()=>[display],getPrimaryDisplay:()=>display,getCursorScreenPoint:()=>cursor},nativeTheme:{shouldUseDarkColors:false},globalShortcut:{unregisterAll(){},register:key=>{hotkeys.push(key);return true;}},dialog:{showMessageBox:async(owner,options)=>{messages.push({owner,options});return {response};}}};
   const fakeFS={mkdirSync(){},readFileSync:file=>{if(!files.has(file))throw Error('missing');return files.get(file);},writeFileSync:(file,text)=>files.set(file,text),renameSync:(from,to)=>{files.set(to,files.get(from));files.delete(from);}};
-  const context=vm.createContext({__dirname:root,process:{argv:[],execPath:'electron.exe'},fixture:{preferences,dock},setTimeout:()=>1,clearTimeout(){},require:name=>name==='electron'?electron:name==='node:fs'?fakeFS:name==='./codex.cjs'?{CodexClient:class{}}:name==='./fullscreen.cjs'?require('../src/fullscreen.cjs'):name==='./topmost.cjs'?require('../src/topmost.cjs'):name==='./model.cjs'?require('../src/model.cjs'):require(name)});
+  const context=vm.createContext({__dirname:root,process:{argv:[],execPath:'electron.exe'},fixture:{preferences,dock,panel},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},require:name=>name==='electron'?electron:name==='node:fs'?fakeFS:name==='./codex.cjs'?{CodexClient:class{}}:name==='./fullscreen.cjs'?require('../src/fullscreen.cjs'):name==='./topmost.cjs'?require('../src/topmost.cjs'):name==='./model.cjs'?require('../src/model.cjs'):require(name)});
   context.fixture.monitor={shouldYield:()=>yieldFullscreen};
   vm.runInContext(source+'\npreferences=fixture.preferences;dock=fixture.dock;fullscreenMonitor=fixture.monitor;',context);
-  return {handlers,files,settingsFile,usageFile,sourcesFile,messages,login,hotkeys,preferences,dock,event:{sender:preferences.webContents,senderFrame:preferences.webContents.mainFrame},confirm:(choice=2)=>response=choice,close:()=>destroyed=true,yieldFullscreen:()=>yieldFullscreen=true};
+  return {handlers,files,settingsFile,usageFile,sourcesFile,messages,login,hotkeys,preferences,dock,timers,closes,run:code=>vm.runInContext(code,context),cursor:point=>cursor=point,event:{sender:preferences.webContents,senderFrame:preferences.webContents.mainFrame},confirm:(choice=2)=>response=choice,close:()=>destroyed=true,yieldFullscreen:()=>yieldFullscreen=true};
 }
+test('stationary hover on an already-visible agent never reopens or repositions the panel',async()=>{
+  const f=fixture();f.run('panel=fixture.panel;');
+  for(let i=0;i<10;i++)await f.handlers.action(f.event,'hover','codex');
+  assert.equal(f.timers.length,0);f.run("showPanel('codex',false);");assert.equal(f.closes.length,0);
+});
+test('delayed leave ignores false mouseleave while pointer remains over either HUD window',()=>{
+  const f=fixture();f.run('panel=fixture.panel;scheduleHide();');f.timers.at(-1)();assert.equal(f.closes.length,0);
+  f.cursor({x:90,y:10});f.run('scheduleHide();');f.timers.at(-1)();assert.equal(f.closes.length,0);
+  f.cursor({x:1000,y:1000});f.run('scheduleHide();');f.timers.at(-1)();assert.equal(f.closes.length,1);
+});
 test('exclusive fullscreen blocks hover or shortcut panel opening without changing settings',async()=>{
   const f=fixture(),before=f.files.get(f.settingsFile);f.yieldFullscreen();
   const result=await f.handlers.action(f.event,'open','codex');

@@ -46,7 +46,7 @@ function sanitizeSettings(input = {}) {
   if(/^#[0-9a-f]{6}$/i.test(input.customColor || '')) s.customColor=input.customColor;
   if(typeof input.hotkey==='string' && input.hotkey.length<70 && /^(Control|Alt|Shift|Super|CommandOrControl|[A-Za-z0-9+ ])+$/.test(input.hotkey)) s.hotkey=input.hotkey;
   if(Number.isInteger(input.displayId)) s.displayId=input.displayId;
-  if([7,30].includes(input.chartDays)) s.chartDays=input.chartDays;
+  if([1,7,30].includes(input.chartDays)) s.chartDays=input.chartDays;
   if(Array.isArray(input.agents)) s.agents=['codex', 'claude', 'deepseek'].filter(id=>input.agents.includes(id));
   if(!s.agents.length) s.agents=['codex'];
   return s;
@@ -79,6 +79,13 @@ function snapshot(raw, previous, now=Date.now()) {
       .map(t=>({id:t.id,title:t.name || '未命名会话',updatedAt:t.updatedAt,status:'unknown'}))
   };
 }
+function sampleUsage(previous,tokens,account,interval,now=Date.now(),continuous=true){
+  if(!Number.isSafeInteger(tokens)||tokens<0||!account)return {usageSamples:[],sampledAccount:null};
+  let samples=previous?.sampledAccount===account&&Array.isArray(previous.usageSamples)?previous.usageSamples.slice(-3000).filter(s=>Number.isFinite(s.at)&&s.at>now-25*3600000&&s.at<now&&Number.isSafeInteger(s.tokens)&&s.tokens>=0&&Number.isFinite(s.interval)&&s.interval>=30&&s.interval<=600):[];
+  if(samples.length&&tokens<samples.at(-1).tokens)samples=[];
+  samples.push({at:now,tokens,interval,continuous});
+  return {usageSamples:samples,sampledAccount:account};
+}
 function dockBounds(area,s,count=1) {
   const vertical=s.edge==='left'||s.edge==='right';
   const itemLength=s.ringSize+(s.showNumbers?43:8);
@@ -103,4 +110,4 @@ function panelBounds(dock,area,edge,width,height) {
   }
   return {width,height,x:Math.round(Math.max(area.x,Math.min(area.x+area.width-width,x))),y:Math.round(Math.max(area.y,Math.min(area.y+area.height-height,y)))};
 }
-module.exports={defaults,sanitizeSettings,settingsPages,resetSettings,snapshot,dockBounds,panelBounds};
+module.exports={defaults,sanitizeSettings,settingsPages,resetSettings,snapshot,sampleUsage,dockBounds,panelBounds};

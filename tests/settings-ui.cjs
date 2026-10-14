@@ -40,6 +40,11 @@ app.whenReady().then(async()=>{
           check(Number(document.getElementById(key).value)===Number((before+step).toFixed(2)),key+' commits on Enter');
         }
       }
+      await navigate('display');
+      const period=document.getElementById('chartDays');
+      check(!!period.querySelector('option[value="1"]'),'24-hour chart period appears in settings');
+      period.value='1';period.dispatchEvent(new Event('change',{bubbles:true}));await tick();
+      check((await window.hud.state()).settings.chartDays===1,'24-hour chart period saves');
       await navigate('layout');
       await enter('edgeGap','999');check(document.getElementById('edgeGap').value==='32'&&document.getElementById('edgeGap-more').disabled,'upper bound clamps and disables arrow');
       await enter('edgeGap','-20');check(document.getElementById('edgeGap').value==='0'&&document.getElementById('edgeGap-less').disabled,'lower bound clamps and disables arrow');

@@ -1,7 +1,8 @@
 const {app,BrowserWindow}=require('electron');
 const assert=require('node:assert/strict');
 const path=require('node:path');
-const {spawnSync}=require('node:child_process');
+const {spawnSync,spawn}=require('node:child_process');
+const {createInterface}=require('node:readline');
 const {maintainTopmost}=require('../src/topmost.cjs');
 const {monitorFullscreen}=require('../src/fullscreen.cjs');
 const {EventEmitter}=require('node:events');
@@ -11,7 +12,7 @@ app.setPath('userData',directory);app.setPath('crashDumps',path.join(directory,'
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const handle=window=>{const buffer=window.getNativeWindowHandle();return (buffer.length===8?buffer.readBigUInt64LE():BigInt(buffer.readUInt32LE())).toString();};
 app.whenReady().then(async()=>{
-  const windows=[];let guard,fullscreen,nativeMonitor;const checks=[];
+  const windows=[];let guard,fullscreen,nativeMonitor,external;const checks=[];
   const check=(value,label)=>{assert.ok(value,label);checks.push(label);};
   try{
     nativeMonitor=monitorFullscreen(path.resolve(__dirname,'../runtime/FullscreenState.exe'),()=>{});
@@ -35,12 +36,30 @@ app.whenReady().then(async()=>{
     const signal=new EventEmitter();signal.stdout=new PassThrough();signal.stdin=new PassThrough();signal.kill=()=>{};
     fullscreen=monitorFullscreen('test-detector.exe',()=>guard?.refresh(),()=>signal);signal.stdout.write('desktop\n');
     let enabled=true;guard=maintainTopmost(()=>[dock,panel],()=>enabled&&!fullscreen.shouldYield());
+    signal.stdout.write('restore\n');
     await delay(1250);const recovered=inspect();
-    check(above(recovered,0,2)&&above(recovered,1,0),'timer recovers dock and panel in correct native z-order');
+    check(above(recovered,0,2)&&above(recovered,1,0),'occlusion request recovers dock and panel in correct native z-order');
     check((recovered.styles[ids[0]]&8)!==0&&(recovered.styles[ids[1]]&8)!==0,'native Windows topmost flags are retained');
     check(recovered.foreground===before.foreground,'recovery preserves foreground keyboard focus');
+    let restores=0;
+    nativeMonitor=monitorFullscreen(path.resolve(__dirname,'../runtime/FullscreenState.exe'),()=>guard.refresh(),spawn,()=>{restores++;guard.refresh();});
+    nativeMonitor.setWindows([dock,panel]);
+    for(let i=0;i<30&&nativeMonitor.shouldYield();i++)await delay(100);
+    check(!nativeMonitor.shouldYield(),'native occlusion monitor ready');
+    external=spawn(process.execPath,[path.join(__dirname,'external-overlay.cjs')],{windowsHide:true,stdio:['pipe','pipe','ignore']});
+    const externalId=await new Promise((resolve,reject)=>{
+      const timer=setTimeout(()=>reject(Error('External overlay startup timeout')),5000);
+      createInterface({input:external.stdout}).on('line',line=>{if(/^overlay:\d+$/.test(line)){clearTimeout(timer);resolve(line.slice(8));}});
+      external.once('error',error=>{clearTimeout(timer);reject(error);});
+    });
+    await delay(800);
+    const externalState=JSON.parse(spawnSync(path.join(directory,'WindowOrder.exe'),[ids[0],ids[1],externalId],{encoding:'utf8',windowsHide:true}).stdout);
+    check(restores>0&&externalState.order.indexOf(ids[0])<externalState.order.indexOf(externalId),'actual native occlusion restores above an independent process');
+    const settled=restores;await delay(1000);
+    check(restores===settled,'idle native monitor does not repeatedly promote unobscured windows');
+    external.stdin.end();external.kill();external=null;nativeMonitor.stop();
     for(let i=0;i<3;i++){
-      competitor.moveTop();const foreground=inspect().foreground;await delay(1200);const state=inspect();
+      competitor.moveTop();const foreground=inspect().foreground;signal.stdout.write('restore\n');await delay(1200);const state=inspect();
       check(above(state,0,2)&&above(state,1,0)&&state.foreground===foreground,'recovers repeated competitor promotion '+(i+1));
     }
     panel.hide();dock.hide();competitor.moveTop();await delay(1200);
@@ -60,5 +79,5 @@ app.whenReady().then(async()=>{
     check(windows.slice(0,2).every(window=>window.isDestroyed()),'closed overlays do not crash the guard');
     console.log(JSON.stringify({passed:checks.length,checks},null,2));
   }catch(error){console.error(error);process.exitCode=1;}
-  finally{guard?.stop();fullscreen?.stop();nativeMonitor?.stop();for(const window of windows)if(!window.isDestroyed())window.destroy();app.exit(process.exitCode||0);}
+  finally{guard?.stop();fullscreen?.stop();nativeMonitor?.stop();external?.kill();for(const window of windows)if(!window.isDestroyed())window.destroy();app.exit(process.exitCode||0);}
 });

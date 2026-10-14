@@ -1,11 +1,12 @@
 const {app,BrowserWindow,ipcMain,screen,Tray,Menu,nativeImage,nativeTheme,globalShortcut,Notification,shell,dialog}=require('electron');
 const fs=require('node:fs');
 const path=require('node:path');
+const {createHash}=require('node:crypto');
 const {spawn}=require('node:child_process');
 const {CodexClient}=require('./codex.cjs');
 const {maintainTopmost}=require('./topmost.cjs');
 const {monitorFullscreen}=require('./fullscreen.cjs');
-const {defaults,sanitizeSettings,settingsPages,resetSettings,snapshot,dockBounds,panelBounds}=require('./model.cjs');
+const {defaults,sanitizeSettings,settingsPages,resetSettings,snapshot,sampleUsage,dockBounds,panelBounds}=require('./model.cjs');
 const root=path.resolve(__dirname,'..');
 const runtime=path.join(root,'runtime');
 for(const dir of ['user-data','cache','logs','temp','crash-dumps']) fs.mkdirSync(path.join(runtime,dir),{recursive:true});
@@ -27,7 +28,7 @@ if(codex) codex={...codex,connected:false,stale:true};
 let dock,panel,preferences,tray,topmostGuard,fullscreenMonitor,pinned=false,panelAgent='codex',refreshTimer,refreshing=false,hoverTimer,hideTimer,baseline=null,dragState=null;
 let sources=readJSON(path.join(runtime,'sources.json'),{});
 const client=new CodexClient();
-let connectionError='',hotkeyError='',autoStarted=process.argv.includes('--agent-auto');
+let connectionError='',hotkeyError='',usageSamplingStarted=false,autoStarted=process.argv.includes('--agent-auto');
 const names={codex:'Codex',claude:'Claude',deepseek:'DeepSeek'};
 const assets={codex:'chatgpt',claude:'claude',deepseek:'deepseek'};
 function otherProvider(id){
@@ -56,14 +57,16 @@ function applyStartup(){
   }
 }
 function display(){return screen.getAllDisplays().find(d=>d.id===settings.displayId)||screen.getPrimaryDisplay();}
+function placeWindow(window,bounds){const old=window.getBounds();if(Object.keys(bounds).some(key=>old[key]!==bounds[key]))window.setBounds(bounds);}
 function setBounds(){
   if(!dock||dock.isDestroyed())return;
-  dock.setBounds(dockBounds(display().workArea,settings,settings.agents.length));
+  placeWindow(dock,dockBounds(display().workArea,settings,settings.agents.length));
   if(panel&&!panel.isDestroyed()){
     const area=display().workArea;
-    panel.setBounds(panelBounds(dock.getBounds(),area,settings.edge,Math.min(390,area.width),Math.min(Math.ceil(470*settings.fontScale/100),area.height)));
+    placeWindow(panel,panelBounds(dock.getBounds(),area,settings.edge,Math.min(390,area.width),Math.min(Math.ceil(470*settings.fontScale/100),area.height)));
   }
   topmostGuard?.refresh();
+  fullscreenMonitor?.setWindows?.(settings.alwaysOnTop?[dock,panel]:[]);
 }
 function secureWindow(options,view){
   const w=new BrowserWindow({...options,show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
@@ -77,7 +80,7 @@ function createDock(){
   dock=secureWindow({title:'Token Glance · 贴边用量',...dockBounds(display().workArea,settings,settings.agents.length),frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:false},'dock');
   dock.once('ready-to-show',()=>dock.showInactive());
   dock.on('show',()=>topmostGuard?.refresh());
-  dock.on('close',()=>{dock=null;});
+  dock.on('closed',()=>{dock=null;fullscreenMonitor?.setWindows?.(settings.alwaysOnTop?[dock,panel]:[]);});
   setBounds();
 }
 function ensurePanel(){
@@ -86,16 +89,19 @@ function ensurePanel(){
   panel.on('show',()=>topmostGuard?.refresh());
   panel.once('ready-to-show',()=>{setBounds();if(fullscreenMonitor?.shouldYield())panel.showInactive();else if(pinned){panel.show();panel.focus();}else{panel.showInactive();panel.moveTop();}broadcast();});
   panel.on('blur',()=>{if(!pinned)scheduleHide();});
-  panel.on('close',()=>{panel=null;});
+  panel.on('closed',()=>{panel=null;fullscreenMonitor?.setWindows?.(settings.alwaysOnTop?[dock,panel]:[]);});
   setBounds();
 }
 function showPanel(id='codex',pin=false){
   if(fullscreenMonitor?.shouldYield())return;
   clearTimeout(hideTimer);clearTimeout(hoverTimer);
-  panelAgent=Object.hasOwn(names,id)?id:'codex';pinned=pin;
+  const nextAgent=Object.hasOwn(names,id)?id:'codex';
+  if(!pin&&panel?.isVisible()&&panelAgent===nextAgent)return;
+  panelAgent=nextAgent;pinned=pin;
   ensurePanel();setBounds();if(pin){panel.show();panel.focus();}else{panel.showInactive();panel.moveTop();}broadcast();
 }
-function scheduleHide(){clearTimeout(hideTimer);hideTimer=setTimeout(()=>{if(!pinned)panel?.close();},350);}
+function pointerOverHud(){const point=screen.getCursorScreenPoint();return [dock,panel].some(window=>{if(!window||window.isDestroyed()||!window.isVisible())return false;const bounds=window.getBounds();return point.x>=bounds.x&&point.x<bounds.x+bounds.width&&point.y>=bounds.y&&point.y<bounds.y+bounds.height;});}
+function scheduleHide(){clearTimeout(hideTimer);hideTimer=setTimeout(()=>{if(!pinned&&!pointerOverHud())panel?.close();},350);}
 function showSettings(){
   clearTimeout(hideTimer);if(!pinned)panel?.close();
   if(preferences&&!preferences.isDestroyed()){preferences.show();preferences.focus();return;}
@@ -114,13 +120,19 @@ async function refresh(){
   try{
     const raw=await client.read();const next=snapshot(raw,baseline);
     if(!baseline || next.checkedAt-baseline.checkedAt>=300000)baseline=next;
-    const old=codex;codex=next;connectionError='';
+    const old=codex;
+    const email=raw.account?.account?.email;
+    const account=typeof email==='string'&&email?createHash('sha256').update(email.trim().toLowerCase()).digest('hex'):null;
+    Object.assign(next,sampleUsage(old,next.lifetimeTokens,account,settings.refreshSeconds,next.checkedAt,usageSamplingStarted));
+    usageSamplingStarted=!!account&&Number.isSafeInteger(next.lifetimeTokens);
+    codex=next;connectionError='';
     // Persist only aggregate usage. Session names and IDs remain in memory.
     fs.writeFileSync(usagePath,JSON.stringify({...next,sessions:[]}));
     if(settings.alertEnabled&&next.primary&&next.primary.remaining<=settings.alertThreshold&&(!old?.primary||old.primary.remaining>settings.alertThreshold)&&Notification.isSupported()){
       new Notification({title:'Codex 额度提醒',body:`${next.primary.label}剩余 ${Math.round(next.primary.remaining)}%`,silent:true}).show();
     }
   }catch(e){
+    usageSamplingStarted=false;
     connectionError=e.message.startsWith('Codex RPC')?'当前 Codex 接口未返回用量':'正在等待 Codex 连接';
     if(codex)codex={...codex,connected:false,stale:true};
   }finally{refreshing=false;broadcast();scheduleRefresh();}
@@ -153,7 +165,7 @@ ipcMain.handle('settings',(event,patch)=>{
 });
 ipcMain.handle('action',async(event,name,payload)=>{
   requireTrusted(event);
-  if(name==='hover'){clearTimeout(hideTimer);clearTimeout(hoverTimer);if(!pinned)hoverTimer=setTimeout(()=>showPanel(payload,false),settings.hoverDelay);}
+  if(name==='hover'){clearTimeout(hideTimer);clearTimeout(hoverTimer);if(!pinned&&!(panel?.isVisible()&&panelAgent===payload))hoverTimer=setTimeout(()=>showPanel(payload,false),settings.hoverDelay);}
   else if(name==='leave'){clearTimeout(hoverTimer);scheduleHide();}
   else if(name==='panel-enter'){clearTimeout(hideTimer);}
   else if(name==='open'){if(panel?.isVisible()&&pinned&&panelAgent===payload)closePanel();else showPanel(payload,true);}

@@ -2,6 +2,10 @@
 
 ## 0.1.1 — Experimental source preview
 
+- Fix hover flicker by preserving dock nodes, ignoring duplicate hover opens and false leave events, and raising overlays only on actual occlusion instead of every second.
+
+- Add a rolling 24-hour Token activity option with hourly local samples. Unknown/unobserved intervals are not filled using daily account totals.
+
 - Automatically yield to Windows-reported exclusive Direct3D fullscreen, then restore the user's topmost preference when returning to the desktop.
 - Recover the HUD and detail panel above other pinned Windows apps without taking keyboard focus. Respect hidden windows and the always-on-top setting.
 - Use the above-taskbar overlay level to avoid losing Windows topmost status with a replacement desktop dock.

@@ -35,12 +35,31 @@ function color(remaining){return remaining==null?'var(--subtle)':remaining<=10?'
 function ring(provider,settings){const remaining=provider.primary?.remaining;return `<span class="ring ${remaining==null?'unknown':''} ${settings.showRing?'':'hide-ring'}" style="--ring-offset:${remaining==null?100:100-remaining};--ring-color:${color(remaining)}"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="17" pathLength="100"/><circle class="fill" cx="20" cy="20" r="17" pathLength="100"/></svg><img class="agent-logo ${provider.id}" src="assets/${provider.id==='codex'?'chatgpt':provider.id}.png" alt=""></span>`;}
 function countdown(timestamp){if(!Number.isFinite(timestamp))return '重置时间未知';const mins=Math.max(0,Math.ceil((timestamp*1000-Date.now())/60000));if(!mins)return '等待额度更新';if(mins>=1440)return `${Math.floor(mins/1440)} 天 ${Math.floor(mins%1440/60)} 小时后重置`;return `${Math.floor(mins/60)} 小时 ${mins%60} 分后重置`;}
 function quotas(provider,settings,used=false){const rows=provider.quotas.filter(q=>settings.showShort||q.minutes>300);return rows.map(q=>`<div class="quota-row"><div class="between"><span class="quota-label">${esc(q.label)}</span><span class="quota-value mono" style="--quota-color:${color(q.remaining)}">${Math.round(used?q.used:q.remaining)}<small>%</small></span></div><div class="quota-track"><div class="quota-fill" style="--fill:${used?q.used:q.remaining}%;--quota-color:${color(q.remaining)}"></div></div><div class="between quota-sub"><span>${used?'已使用':'剩余额度'}</span><span>${countdown(q.resetsAt)}</span></div></div>`).join('');}
-function chartData(provider,days){
+function chartData(provider,days,now=Date.now()){
+  if(days===1){
+    const start=now-24*3600000;
+    const slots=Array.from({length:24},(_,i)=>({at:start+i*3600000,tokens:null}));
+    const samples=Array.isArray(provider.usageSamples)?provider.usageSamples:[];let observed=0;
+    for(let i=1;i<samples.length;i++){
+      const a=samples[i-1],b=samples[i];
+      if(![a,b].every(s=>s&&Number.isFinite(s.at)&&Number.isSafeInteger(s.tokens)&&s.tokens>=0&&Number.isFinite(s.interval)&&s.interval>=30&&s.interval<=600))continue;
+      const duration=b.at-a.at,delta=b.tokens-a.tokens;
+      if(b.continuous===false||a.at<start||b.at>now||duration<=0||duration>Math.max(a.interval,b.interval)*2000+10000||!Number.isSafeInteger(delta)||delta<0)continue;
+      const first=Math.max(0,Math.floor((a.at-start)/3600000)),last=Math.min(23,Math.floor((b.at-start)/3600000));
+      for(let j=first;j<=last;j++)slots[j].tokens??=0;
+      slots[last].tokens+=delta;observed+=duration;
+    }
+    return {slots:observed?slots:[],total:observed?slots.reduce((sum,b)=>sum+(b.tokens??0),0):null,start,end:now,hourly:true,observed};
+  }
   if(!provider.buckets?.length)return {slots:[],total:null,start:'',end:''};
   const latest=provider.buckets.at(-1).date;const end=new Date(latest+'T12:00:00Z');const slots=[];
   for(let i=days-1;i>=0;i--){const day=new Date(end);day.setUTCDate(end.getUTCDate()-i);const date=day.toISOString().slice(0,10);slots.push({date,tokens:provider.buckets.find(b=>b.date===date)?.tokens??null});}
   return {slots,total:slots.reduce((s,b)=>s+(b.tokens??0),0),start:slots[0].date,end:latest};
 }
-function chartHTML(data){const max=Math.max(1,...data.slots.map(b=>b.tokens||0));return `<div class="chart">${data.slots.map(b=>`<div class="bar ${b.tokens==null?'missing':''}" title="${esc(b.date)} · ${b.tokens==null?'无数据':new Intl.NumberFormat('zh-CN').format(b.tokens)+' tokens'}" style="--height:${b.tokens==null?2:Math.max(2,b.tokens/max*100)}%"></div>`).join('')}</div><div class="between chart-labels"><span>${data.start.slice(5).replace('-',' / ')}</span><span>截至 ${data.end.slice(5).replace('-',' / ')} · 按日</span></div>`;}
+function chartHTML(data){
+  const max=Math.max(1,...data.slots.map(b=>b.tokens||0));
+  const time=at=>new Date(at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
+  return `<div class="chart">${data.slots.map(b=>`<div class="bar ${b.tokens==null?'missing':''}" title="${esc(data.hourly?time(b.at):b.date)} · ${b.tokens==null?'无数据':new Intl.NumberFormat('zh-CN').format(b.tokens)+' tokens'}" style="--height:${b.tokens==null?2:Math.max(2,b.tokens/max*100)}%"></div>`).join('')}</div><div class="between chart-labels"><span>${data.hourly?time(data.start):data.start.slice(5).replace('-',' / ')}</span><span>${data.hourly?'最近 24 小时':`截至 ${data.end.slice(5).replace('-',' / ')} · 按日`}</span></div>`;
+}
 function statusLabel(p){return p.stale?'上次记录':p.connected?(p.source==='file'?'文件快照':'已连接'):'未连接';}
 window.HUD={icon,esc,number,applyTheme,color,ring,countdown,quotas,chartData,chartHTML,statusLabel};
