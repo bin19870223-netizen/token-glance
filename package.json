@@ -1,9 +1,11 @@
 {
   "name": "token-glance",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "license": "MIT",
-  "engines": { "node": ">=22.12.0" },
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "description": "A quiet, edge-docked AI usage companion for Windows",
   "main": "src/main.cjs",
   "scripts": {
@@ -12,7 +14,10 @@
     "test": "node --test tests/*.test.mjs",
     "test:watcher": "node scripts/build-watcher.cjs --test",
     "test:ui": "node scripts/test-ui.cjs",
+    "test:topmost": "node scripts/test-topmost.cjs",
     "export:source": "node scripts/export-source.cjs"
   },
-  "devDependencies": { "electron": "44.7.1" }
+  "devDependencies": {
+    "electron": "44.7.1"
+  }
 }

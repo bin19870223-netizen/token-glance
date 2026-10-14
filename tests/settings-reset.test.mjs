@@ -15,17 +15,23 @@ function fixture(){
   files.set(settingsFile,JSON.stringify(sanitizeSettings({theme:'light',edge:'bottom-right',edgeGap:25,ringSize:44,opacity:70,startupMode:'agents',hotkey:'Alt+G',agents:['claude'],alertEnabled:true,watchProcesses:{claude:'custom.exe'}})));
   const usageFile=path.resolve(root,'../runtime/usage.json'),sourcesFile=path.resolve(root,'../runtime/sources.json');
   files.set(usageFile,'{"lifetimeTokens":1234}');files.set(sourcesFile,JSON.stringify({claude:path.join(root,'fixtures','usage.json')}));
-  let destroyed=false,response=0;
+  let destroyed=false,response=0,yieldFullscreen=false;
   const window=()=>({webContents:{mainFrame:{},send(){}},isDestroyed:()=>destroyed});
   const preferences=window(),dock=window();Object.assign(dock,{setBounds(){},setAlwaysOnTop(){},moveTop(){}});
   const fakeApp={setPath(){},setAppLogsPath(){},setName(){},setAppUserModelId(){},commandLine:{appendSwitch(){}},requestSingleInstanceLock:()=>false,quit(){},on(){},setLoginItemSettings:value=>login.push(value)};
   const area={x:0,y:0,width:1920,height:1040},display={id:1,workArea:area};
   const electron={app:fakeApp,ipcMain:{handle:(name,fn)=>handlers[name]=fn},screen:{getAllDisplays:()=>[display],getPrimaryDisplay:()=>display},nativeTheme:{shouldUseDarkColors:false},globalShortcut:{unregisterAll(){},register:key=>{hotkeys.push(key);return true;}},dialog:{showMessageBox:async(owner,options)=>{messages.push({owner,options});return {response};}}};
   const fakeFS={mkdirSync(){},readFileSync:file=>{if(!files.has(file))throw Error('missing');return files.get(file);},writeFileSync:(file,text)=>files.set(file,text),renameSync:(from,to)=>{files.set(to,files.get(from));files.delete(from);}};
-  const context=vm.createContext({__dirname:root,process:{argv:[],execPath:'electron.exe'},fixture:{preferences,dock},setTimeout:()=>1,clearTimeout(){},require:name=>name==='electron'?electron:name==='node:fs'?fakeFS:name==='./codex.cjs'?{CodexClient:class{}}:name==='./model.cjs'?require('../src/model.cjs'):require(name)});
-  vm.runInContext(source+'\npreferences=fixture.preferences;dock=fixture.dock;',context);
-  return {handlers,files,settingsFile,usageFile,sourcesFile,messages,login,hotkeys,preferences,dock,event:{sender:preferences.webContents,senderFrame:preferences.webContents.mainFrame},confirm:(choice=2)=>response=choice,close:()=>destroyed=true};
+  const context=vm.createContext({__dirname:root,process:{argv:[],execPath:'electron.exe'},fixture:{preferences,dock},setTimeout:()=>1,clearTimeout(){},require:name=>name==='electron'?electron:name==='node:fs'?fakeFS:name==='./codex.cjs'?{CodexClient:class{}}:name==='./fullscreen.cjs'?require('../src/fullscreen.cjs'):name==='./topmost.cjs'?require('../src/topmost.cjs'):name==='./model.cjs'?require('../src/model.cjs'):require(name)});
+  context.fixture.monitor={shouldYield:()=>yieldFullscreen};
+  vm.runInContext(source+'\npreferences=fixture.preferences;dock=fixture.dock;fullscreenMonitor=fixture.monitor;',context);
+  return {handlers,files,settingsFile,usageFile,sourcesFile,messages,login,hotkeys,preferences,dock,event:{sender:preferences.webContents,senderFrame:preferences.webContents.mainFrame},confirm:(choice=2)=>response=choice,close:()=>destroyed=true,yieldFullscreen:()=>yieldFullscreen=true};
 }
+test('exclusive fullscreen blocks hover or shortcut panel opening without changing settings',async()=>{
+  const f=fixture(),before=f.files.get(f.settingsFile);f.yieldFullscreen();
+  const result=await f.handlers.action(f.event,'open','codex');
+  assert.equal(result.pinned,false);assert.equal(f.files.get(f.settingsFile),before);
+});
 test('cancel reset preserves settings and defaults confirmation to Cancel',async()=>{
   const f=fixture(),before=f.files.get(f.settingsFile);
   assert.equal(await f.handlers.action(f.event,'reset-settings','layout'),null);

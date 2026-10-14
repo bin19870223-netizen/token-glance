@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.1 — Experimental source preview
+
+- Automatically yield to Windows-reported exclusive Direct3D fullscreen, then restore the user's topmost preference when returning to the desktop.
+- Recover the HUD and detail panel above other pinned Windows apps without taking keyboard focus. Respect hidden windows and the always-on-top setting.
+- Use the above-taskbar overlay level to avoid losing Windows topmost status with a replacement desktop dock.
+- Add isolated native window-order regression checks.
+
 ## 0.1.0 — Experimental source preview
 
 - Windows edge-docked quota rings, hover and pinned detail panel.

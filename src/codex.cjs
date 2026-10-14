@@ -58,7 +58,7 @@ class CodexClient {
       if (message.error) entry.reject(new Error('Codex RPC ' + message.error.code));
       else entry.resolve(message.result);
     });
-    await this.request('initialize', { clientInfo: { name:'agent_hud_windows', title:'Token Glance Windows', version:'0.1.0' }, capabilities:{ experimentalApi: true } });
+    await this.request('initialize', { clientInfo: { name:'agent_hud_windows', title:'Token Glance Windows', version:'0.1.1' }, capabilities:{ experimentalApi: true } });
     child.stdin.write(JSON.stringify({ method:'initialized', params:{} }) + '\n');
     this.ready = true;
   }

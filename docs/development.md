@@ -22,11 +22,15 @@ node_modules/          本机安装的依赖，忽略，不上传
 
 ## 构建和验证
 
-使用锁文件安装依赖：`npm ci`。`npm run build:watcher` 从 Windows .NET Framework 编译器构建 `runtime/AgentUsageWatcher.exe`。不提交 exe；用户和 CI 都从源码构建。
+使用锁文件安装依赖：`npm ci`。`npm run build:watcher` 从 Windows .NET Framework 编译器构建 `runtime/AgentUsageWatcher.exe` 和 `runtime/FullscreenState.exe`。不提交 exe；用户和 CI 都从源码构建。
 
 `npm test` 使用内存文件系统和假对话框检查真实主进程的设置分支，不操作实际系统启动项。`npm run test:watcher` 运行进程名称分类检查，不启动监控服务。`npm run test:ui` 使用假数据和独立 Electron 用户目录，不读取 Codex 账号，不代表生产账号连接或真实系统对话框已经端到端验证。
 
 CI 运行上述测试和监听器构建。结果见本仓库 [Actions](https://github.com/bin19870223-netizen/token-glance/actions)；本机通过不能替代对应提交的云端结果。
+
+`npm run test:topmost` 在 Windows 桌面创建独立测试窗口，复现其他置顶窗口覆盖 HUD，核对真实 Win32 窗口层级、键盘焦点、隐藏和关闭行为。测试期间会短暂出现测试窗口；不读取其他应用的内容、Codex 账号或启动设置。`topmost.cjs` 每秒维护可见 HUD/概览的层级，显示窗口时立即恢复；关闭置顶后停止提升，恢复过程不切换键盘焦点。
+
+`FullscreenState.exe` 由主进程启动并通过管道报告 `SHQueryUserNotificationState`，每 250 毫秒查询一次，仅在状态变化时输出。仅 `QUNS_RUNNING_D3D_FULL_SCREEN`（3）暂停置顶；普通最大化、无边框和浏览器全屏不按独占全屏处理。进入独占时撤销 HUD/概览的置顶标记并停止提升和展开概览，返回桌面立即恢复用户原来的置顶选择，不改写设置。检测未就绪或失败时暂缓置顶；EOF 或应用退出会停止检测进程。原生测试需先执行构建命令，并在普通桌面运行；模拟状态转换验证原生窗口策略，不代表真实游戏兼容性已实测。
 
 ## 资源测量
 

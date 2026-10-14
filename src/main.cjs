@@ -3,6 +3,8 @@ const fs=require('node:fs');
 const path=require('node:path');
 const {spawn}=require('node:child_process');
 const {CodexClient}=require('./codex.cjs');
+const {maintainTopmost}=require('./topmost.cjs');
+const {monitorFullscreen}=require('./fullscreen.cjs');
 const {defaults,sanitizeSettings,settingsPages,resetSettings,snapshot,dockBounds,panelBounds}=require('./model.cjs');
 const root=path.resolve(__dirname,'..');
 const runtime=path.join(root,'runtime');
@@ -22,7 +24,7 @@ function readJSON(file,fallback){try{return JSON.parse(fs.readFileSync(file,'utf
 let settings=sanitizeSettings(readJSON(settingsPath,{}));
 let codex=readJSON(usagePath,null);
 if(codex) codex={...codex,connected:false,stale:true};
-let dock,panel,preferences,tray,pinned=false,panelAgent='codex',refreshTimer,refreshing=false,hoverTimer,hideTimer,baseline=null,dragState=null;
+let dock,panel,preferences,tray,topmostGuard,fullscreenMonitor,pinned=false,panelAgent='codex',refreshTimer,refreshing=false,hoverTimer,hideTimer,baseline=null,dragState=null;
 let sources=readJSON(path.join(runtime,'sources.json'),{});
 const client=new CodexClient();
 let connectionError='',hotkeyError='',autoStarted=process.argv.includes('--agent-auto');
@@ -57,14 +59,11 @@ function display(){return screen.getAllDisplays().find(d=>d.id===settings.displa
 function setBounds(){
   if(!dock||dock.isDestroyed())return;
   dock.setBounds(dockBounds(display().workArea,settings,settings.agents.length));
-  dock.setAlwaysOnTop(settings.alwaysOnTop,'floating');
-  if(settings.alwaysOnTop)dock.moveTop();
   if(panel&&!panel.isDestroyed()){
     const area=display().workArea;
     panel.setBounds(panelBounds(dock.getBounds(),area,settings.edge,Math.min(390,area.width),Math.min(Math.ceil(470*settings.fontScale/100),area.height)));
-    panel.setAlwaysOnTop(settings.alwaysOnTop,'floating');
-    if(settings.alwaysOnTop&&panel.isVisible())panel.moveTop();
   }
+  topmostGuard?.refresh();
 }
 function secureWindow(options,view){
   const w=new BrowserWindow({...options,show:false,webPreferences:{preload:path.join(__dirname,'preload.cjs'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
@@ -75,20 +74,23 @@ function secureWindow(options,view){
   return w;
 }
 function createDock(){
-  dock=secureWindow({title:'Token Glance · 贴边用量',...dockBounds(display().workArea,settings,settings.agents.length),frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:settings.alwaysOnTop},'dock');
-  dock.once('ready-to-show',()=>{dock.showInactive();dock.moveTop();});
+  dock=secureWindow({title:'Token Glance · 贴边用量',...dockBounds(display().workArea,settings,settings.agents.length),frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:false},'dock');
+  dock.once('ready-to-show',()=>dock.showInactive());
+  dock.on('show',()=>topmostGuard?.refresh());
   dock.on('close',()=>{dock=null;});
   setBounds();
 }
 function ensurePanel(){
   if(panel&&!panel.isDestroyed())return;
-  panel=secureWindow({title:'Token Glance · 用量概览',width:390,height:470,frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:settings.alwaysOnTop},'panel');
-  panel.once('ready-to-show',()=>{setBounds();if(pinned){panel.show();panel.focus();}else{panel.showInactive();panel.moveTop();}broadcast();});
+  panel=secureWindow({title:'Token Glance · 用量概览',width:390,height:470,frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:false},'panel');
+  panel.on('show',()=>topmostGuard?.refresh());
+  panel.once('ready-to-show',()=>{setBounds();if(fullscreenMonitor?.shouldYield())panel.showInactive();else if(pinned){panel.show();panel.focus();}else{panel.showInactive();panel.moveTop();}broadcast();});
   panel.on('blur',()=>{if(!pinned)scheduleHide();});
   panel.on('close',()=>{panel=null;});
   setBounds();
 }
 function showPanel(id='codex',pin=false){
+  if(fullscreenMonitor?.shouldYield())return;
   clearTimeout(hideTimer);clearTimeout(hoverTimer);
   panelAgent=Object.hasOwn(names,id)?id:'codex';pinned=pin;
   ensurePanel();setBounds();if(pin){panel.show();panel.focus();}else{panel.showInactive();panel.moveTop();}broadcast();
@@ -203,6 +205,8 @@ else{
     Menu.setApplicationMenu(null);
     const icon=nativeImage.createFromPath(path.join(__dirname,'ui','assets','chatgpt.png')).resize({width:20,height:20});
     tray=new Tray(icon);tray.on('click',()=>panel?.isVisible()?closePanel():showPanel('codex',true));tray.on('double-click',showSettings);
+    fullscreenMonitor=monitorFullscreen(path.join(runtime,'FullscreenState.exe'),()=>topmostGuard?.refresh());
+    topmostGuard=maintainTopmost(()=>[dock,panel],()=>settings.alwaysOnTop&&!fullscreenMonitor.shouldYield());
     saveSettings();applyStartup();createDock();applyHotkey();updateTray();refresh();
     nativeTheme.on('updated',broadcast);
     screen.on('display-metrics-changed',()=>{setBounds();broadcast();});
@@ -211,4 +215,4 @@ else{
   });
 }
 app.on('window-all-closed',()=>{});
-app.on('before-quit',()=>{clearTimeout(refreshTimer);clearTimeout(hideTimer);clearTimeout(hoverTimer);globalShortcut.unregisterAll();client.stop();tray?.destroy();});
+app.on('before-quit',()=>{topmostGuard?.stop();fullscreenMonitor?.stop();clearTimeout(refreshTimer);clearTimeout(hideTimer);clearTimeout(hoverTimer);globalShortcut.unregisterAll();client.stop();tray?.destroy();});

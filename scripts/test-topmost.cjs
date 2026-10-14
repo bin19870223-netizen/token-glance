@@ -1,0 +1,14 @@
+const fs=require('node:fs');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+const root=path.resolve(__dirname,'..');
+if(process.platform!=='win32')throw new Error('Native window-order checks require Windows.');
+const directory=path.join(root,'work','topmost-test-runtime');
+const temp=path.join(directory,'temp');fs.mkdirSync(temp,{recursive:true});
+const compiler=['Framework64','Framework'].map(folder=>path.join(process.env.WINDIR||'C:\\Windows','Microsoft.NET',folder,'v4.0.30319','csc.exe')).find(fs.existsSync);
+if(!compiler)throw new Error('.NET Framework C# compiler was not found.');
+const env={...process.env,TEMP:temp,TMP:temp};
+const build=spawnSync(compiler,['/nologo','/target:exe','/out:'+path.join(directory,'WindowOrder.exe'),path.join(root,'tests','windows','WindowOrder.cs')],{cwd:root,stdio:'inherit',windowsHide:true,env});
+if(build.error)throw build.error;if(build.status!==0)process.exit(build.status||1);
+const result=spawnSync(require('electron'),[path.join(root,'tests','topmost-windows.cjs')],{cwd:root,stdio:'inherit',windowsHide:true,env});
+if(result.error)throw result.error;process.exitCode=result.status===null?1:result.status;

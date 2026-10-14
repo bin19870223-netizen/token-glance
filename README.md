@@ -2,11 +2,11 @@
 
 一个安静的 Windows AI 用量助手，让额度待在视线边缘。
 
-**v0.1.0 · 实验性源码预览 · Windows 专用 · MIT**
+**v0.1.1 · 实验性源码预览 · Windows 专用 · MIT**
 
 独立社区项目，非 OpenAI、Anthropic、DeepSeek 或参考项目的官方发行版。
 
-[v0.1.0 实验性预览发布页](https://github.com/bin19870223-netizen/token-glance/releases/tag/v0.1.0) · 本版提供源码，不是免安装 exe。
+[v0.1.1 实验性预览发布页](https://github.com/bin19870223-netizen/token-glance/releases/tag/v0.1.1) · 本版提供源码，不是免安装 exe。
 
 ![设置界面，离线测试环境](docs/images/settings.png)
 
@@ -21,6 +21,7 @@
 - 所有设置滑条支持箭头微调、数字输入后 Enter 保存、Esc 取消输入。
 - 「恢复默认设置…」可选择仅恢复本页或恢复全部；执行前说明范围。
 - 手动启动、随 Windows 登录启动、随监控 Agent 启动；跟随模式使用小型 .NET 监听器每五秒检查进程。
+- 普通应用上方保持置顶；Windows 报告独占全屏 Direct3D 游戏时自动暂停置顶，返回桌面恢复。
 
 ## 支持范围
 
@@ -74,6 +75,7 @@ Claude / DeepSeek 快照格式见 [examples/usage-snapshot.json](examples/usage-
 npm test                  # 数据、布局、设置与 IPC 重置逻辑
 npm run test:watcher       # 编译并运行进程识别测试
 npm run test:ui            # 隔离的 Electron 界面检查，无账号读取
+npm run test:topmost       # Windows 原生窗口层级检查，先构建，在普通桌面运行
 npm audit --registry=https://registry.npmjs.org
 ```
 
