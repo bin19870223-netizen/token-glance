@@ -1,0 +1,15 @@
+* text=auto
+*.cjs text eol=lf
+*.mjs text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.ps1 text eol=crlf
+*.vbs text eol=crlf
+*.png binary
+/runtime export-ignore
+/work export-ignore
+/references export-ignore
+/node_modules export-ignore
+*.lnk export-ignore

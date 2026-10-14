@@ -1,0 +1,20 @@
+# Private local state, experiments and upstream reference checkouts
+/runtime/
+/work/
+/references/
+/node_modules/
+/dist/
+/coverage/
+*.lnk
+*.exe
+*.log
+*.tmp
+*.zip
+.env
+.env.*
+*.pem
+*.key
+auth.json
+credentials.json
+.DS_Store
+Thumbs.db

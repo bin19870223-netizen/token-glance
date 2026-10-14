@@ -1,0 +1,6 @@
+{
+  "primary": {"usedPercent": 20, "windowDurationMins": 300, "resetsAt": 2000000000},
+  "secondary": null,
+  "lifetimeTokens": 123456,
+  "dailyUsageBuckets": [{"startDate": "2026-01-01", "tokens": 123456}]
+}

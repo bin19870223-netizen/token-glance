@@ -1,0 +1,18 @@
+{
+  "name": "token-glance",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "engines": { "node": ">=22.12.0" },
+  "description": "A quiet, edge-docked AI usage companion for Windows",
+  "main": "src/main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "build:watcher": "node scripts/build-watcher.cjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:watcher": "node scripts/build-watcher.cjs --test",
+    "test:ui": "node scripts/test-ui.cjs",
+    "export:source": "node scripts/export-source.cjs"
+  },
+  "devDependencies": { "electron": "44.7.1" }
+}
