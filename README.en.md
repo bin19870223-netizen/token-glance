@@ -6,9 +6,9 @@
 
 A small ring stays docked to the edge. Hover to see quota and Token activity, or click to pin the panel while you work.
 
-Windows 10 / 11 · MIT · **v0.1.1 experimental source preview**
+Windows 10 / 11 · MIT · **v0.1.2 experimental source preview**
 
-[Get the source](https://github.com/bin19870223-netizen/token-glance/releases/tag/v0.1.1) · [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/bin19870223-netizen/token-glance/issues)
+[Get the source](https://github.com/bin19870223-netizen/token-glance/releases/tag/v0.1.2) · [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/bin19870223-netizen/token-glance/issues)
 
 ![Edge dock and usage panels in light and dark themes](docs/images/overview.png)
 
@@ -35,7 +35,7 @@ Click an image to view it at full size.
 
 The 24-hour chart groups **increments sampled while the app is running** into hourly slots, starting after the update. Offline periods, connection failures, and restart gaps remain unobserved. Daily billing totals are never used to invent hourly history. The 7 / 30-day charts continue to use daily account aggregates.
 
-Start manually, at Windows sign-in, or with a monitored Agent. Agent-follow mode checks enabled Agents every five seconds. When all monitored Agents exit, the UI and its usage connection also exit.
+Start manually, at Windows sign-in, or with a monitored Agent. Windows sign-in mode only triggers at login; select Agent-follow mode to bring the HUD back when you close and reopen Codex. Agent-follow mode checks enabled Agents every five seconds. When all monitored Agents exit, the UI and its usage connection also exit, while the independent watcher stays running for the next launch.
 
 | Last 24 hours · local samples | Start with a monitored Agent |
 | --- | --- |

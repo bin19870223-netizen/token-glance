@@ -10,6 +10,7 @@ const {defaults,sanitizeSettings,settingsPages,resetSettings,snapshot,sampleUsag
 const root=path.resolve(__dirname,'..');
 const runtime=path.join(root,'runtime');
 for(const dir of ['user-data','cache','logs','temp','crash-dumps']) fs.mkdirSync(path.join(runtime,dir),{recursive:true});
+process.env.TEMP=process.env.TMP=path.join(runtime,'temp');
 app.setPath('userData',path.join(runtime,'user-data'));
 app.setPath('sessionData',path.join(runtime,'user-data'));
 app.setPath('temp',path.join(runtime,'temp'));
@@ -47,10 +48,18 @@ function allProviders(){return {codex:codex || {id:'codex',name:'Codex',connecte
 function state(){return {settings,providers:allProviders(),pinned,panelAgent,refreshing,connectionError,hotkeyError,dark:settings.theme==='dark'||settings.theme==='system'&&nativeTheme.shouldUseDarkColors,displays:screen.getAllDisplays().map(d=>({id:d.id,name:d.label || `显示器 ${d.id}`,primary:d.id===screen.getPrimaryDisplay().id})),sources:{claude:!!sources.claude,deepseek:!!sources.deepseek}};}
 function broadcast(){const value=state();for(const w of [dock,panel,preferences])if(w&&!w.isDestroyed())w.webContents.send('state',value);updateTray();}
 function saveSettings(){fs.writeFileSync(settingsPath+'.tmp',JSON.stringify(settings,null,2));fs.renameSync(settingsPath+'.tmp',settingsPath);}
+function logStartup(event){
+  const file=path.join(runtime,'logs','startup.log');
+  try{
+    if(fs.existsSync(file)&&fs.statSync(file).size>65536)fs.renameSync(file,file+'.previous');
+    fs.appendFileSync(file,`${new Date().toISOString()} ${event}\n`);
+  }catch{ /* Diagnostics must not prevent startup. */ }
+}
 function applyStartup(){
   const follow=settings.startupMode==='agents';
   const watcher=path.join(runtime,'AgentUsageWatcher.exe');
-  app.setLoginItemSettings({name:'AgentHUD.Windows',openAtLogin:settings.startupMode!=='manual',path:follow?watcher:process.execPath,args:follow?[]:[root,'--background']});
+  const enabled=settings.startupMode!=='manual';
+  app.setLoginItemSettings({name:'AgentHUD.Windows',openAtLogin:enabled,enabled,path:follow?watcher:process.execPath,args:follow?[]:[root,'--background']});
   if(follow){
     const child=spawn(watcher,[],{cwd:root,windowsHide:true,detached:true,stdio:'ignore'});
     child.on('error',()=>{connectionError='启动监听器未能启动';broadcast();});child.unref();
@@ -78,7 +87,7 @@ function secureWindow(options,view){
 }
 function createDock(){
   dock=secureWindow({title:'Token Glance · 贴边用量',...dockBounds(display().workArea,settings,settings.agents.length),frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:false},'dock');
-  dock.once('ready-to-show',()=>dock.showInactive());
+  dock.once('ready-to-show',()=>{dock.showInactive();logStartup('dock-visible');});
   dock.on('show',()=>topmostGuard?.refresh());
   dock.on('closed',()=>{dock=null;fullscreenMonitor?.setWindows?.(settings.alwaysOnTop?[dock,panel]:[]);});
   setBounds();
@@ -207,6 +216,8 @@ ipcMain.handle('action',async(event,name,payload)=>{
 if(!app.requestSingleInstanceLock())app.quit();
 else if(process.argv.includes('--agents-stopped'))app.quit();
 else{
+  logStartup(`start mode=${settings.startupMode} background=${process.argv.includes('--background')}`);
+  process.on('uncaughtExceptionMonitor',error=>logStartup(`uncaught ${error.name}`));
   app.on('second-instance',(_event,args)=>{
     if(args.includes('--agents-stopped')){if(settings.startupMode==='agents'&&autoStarted)app.quit();}
     else if(args.includes('--agent-auto')){if(settings.startupMode==='agents')autoStarted=true;}
@@ -224,7 +235,8 @@ else{
     screen.on('display-metrics-changed',()=>{setBounds();broadcast();});
     screen.on('display-removed',()=>{setBounds();broadcast();});
     if(!process.argv.includes('--background'))showSettings();
-  });
+    logStartup('ready');
+  }).catch(error=>{logStartup(`failed ${error.name}`);app.exit(1);});
 }
 app.on('window-all-closed',()=>{});
 app.on('before-quit',()=>{topmostGuard?.stop();fullscreenMonitor?.stop();clearTimeout(refreshTimer);clearTimeout(hideTimer);clearTimeout(hoverTimer);globalShortcut.unregisterAll();client.stop();tray?.destroy();});

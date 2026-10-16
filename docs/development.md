@@ -24,7 +24,7 @@ node_modules/          本机安装的依赖，忽略，不上传
 
 使用锁文件安装依赖：`npm ci`。`npm run build:watcher` 从 Windows .NET Framework 编译器构建 `runtime/AgentUsageWatcher.exe` 和 `runtime/FullscreenState.exe`。不提交 exe；用户和 CI 都从源码构建。
 
-`npm test` 使用内存文件系统和假对话框检查真实主进程的设置分支，不操作实际系统启动项。`npm run test:watcher` 运行进程名称分类检查，不启动监控服务。`npm run test:ui` 使用假数据和独立 Electron 用户目录，不读取 Codex 账号，不代表生产账号连接或真实系统对话框已经端到端验证。
+`npm test` 使用内存文件系统和假对话框检查真实主进程的设置分支，不操作实际系统启动项。`npm run test:watcher` 运行进程名称分类和独立进程存活检查，不启动实际监控服务；存活回归通过本机 WMI 创建临时测试子进程，验证关闭宿主 Job 后仍能运行。`npm run test:ui` 使用假数据和独立 Electron 用户目录，不读取 Codex 账号，不代表生产账号连接或真实系统对话框已经端到端验证。
 
 CI 运行上述测试和监听器构建。结果见本仓库 [Actions](https://github.com/bin19870223-netizen/token-glance/actions)；本机通过不能替代对应提交的云端结果。
 

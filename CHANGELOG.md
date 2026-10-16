@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.2 — Experimental source preview
+
+- Keep the Agent watcher independent of the launching host's Windows Job Object, so closing Codex does not also remove the watcher needed for its next launch.
+- Explicitly synchronize Windows startup approval with the selected startup mode and keep process temporary directories inside the application runtime.
+- Add bounded local startup and watcher diagnostics without account or conversation content.
+- Add a native regression that closes a kill-on-close host Job, verifies its worker exits, and confirms the independent child survives.
+- Clarify the difference between Windows sign-in startup and Agent-follow startup in both README languages. The maintainer confirmed the Codex close/reopen flow on the current machine.
+
 ## 0.1.1 — Experimental source preview
 
 - Fix hover flicker by preserving dock nodes, ignoring duplicate hover opens and false leave events, and raising overlays only on actual occlusion instead of every second.

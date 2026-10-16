@@ -6,9 +6,9 @@
 
 平时是一枚贴边圆环，悬停展开额度和 Token 活动，点击即可固定面板。需要时看一眼，用完继续工作。
 
-Windows 10 / 11 · MIT · **v0.1.1 实验性源码预览**
+Windows 10 / 11 · MIT · **v0.1.2 实验性源码预览**
 
-[获取源码](https://github.com/bin19870223-netizen/token-glance/releases/tag/v0.1.1) · [更新记录](CHANGELOG.md) · [反馈问题](https://github.com/bin19870223-netizen/token-glance/issues)
+[获取源码](https://github.com/bin19870223-netizen/token-glance/releases/tag/v0.1.2) · [更新记录](CHANGELOG.md) · [反馈问题](https://github.com/bin19870223-netizen/token-glance/issues)
 
 ![贴边用量条与浅色、深色用量概览](docs/images/overview.png)
 
@@ -35,7 +35,7 @@ Windows 10 / 11 · MIT · **v0.1.1 实验性源码预览**
 
 24 小时视图按小时展示**工具运行期间采集的增量**，从更新后开始累计。未运行、断线和重启间隔保留为无数据，不会用按日账单补造小时明细。7 / 30 天仍使用账号的按日汇总。
 
-支持手动启动、随 Windows 登录启动、随监控 Agent 启动。跟随模式每五秒检查已启用的 Agent；所有监控对象退出后，界面及其用量连接自动退出。
+支持手动启动、随 Windows 登录启动、随监控 Agent 启动。“随 Windows 启动”只在登录时触发；希望关闭并重新打开 Codex 后再次显示，请选择“随监控的 Agent 启动”。跟随模式每五秒检查已启用的 Agent；所有监控对象退出后，界面及其用量连接自动退出，独立监听器保留，等待下次启动。
 
 | 最近 24 小时 · 本机采样 | 随 Agent 启动 |
 | --- | --- |

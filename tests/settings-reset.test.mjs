@@ -24,11 +24,23 @@ function fixture(){
   const area={x:0,y:0,width:1920,height:1040},display={id:1,workArea:area};
   const electron={app:fakeApp,ipcMain:{handle:(name,fn)=>handlers[name]=fn},screen:{getAllDisplays:()=>[display],getPrimaryDisplay:()=>display,getCursorScreenPoint:()=>cursor},nativeTheme:{shouldUseDarkColors:false},globalShortcut:{unregisterAll(){},register:key=>{hotkeys.push(key);return true;}},dialog:{showMessageBox:async(owner,options)=>{messages.push({owner,options});return {response};}}};
   const fakeFS={mkdirSync(){},readFileSync:file=>{if(!files.has(file))throw Error('missing');return files.get(file);},writeFileSync:(file,text)=>files.set(file,text),renameSync:(from,to)=>{files.set(to,files.get(from));files.delete(from);}};
-  const context=vm.createContext({__dirname:root,process:{argv:[],execPath:'electron.exe'},fixture:{preferences,dock,panel},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},require:name=>name==='electron'?electron:name==='node:fs'?fakeFS:name==='./codex.cjs'?{CodexClient:class{}}:name==='./fullscreen.cjs'?require('../src/fullscreen.cjs'):name==='./topmost.cjs'?require('../src/topmost.cjs'):name==='./model.cjs'?require('../src/model.cjs'):require(name)});
+  const context=vm.createContext({__dirname:root,process:{argv:[],execPath:'electron.exe',env:{}},fixture:{preferences,dock,panel},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},require:name=>name==='electron'?electron:name==='node:fs'?fakeFS:name==='./codex.cjs'?{CodexClient:class{}}:name==='./fullscreen.cjs'?require('../src/fullscreen.cjs'):name==='./topmost.cjs'?require('../src/topmost.cjs'):name==='./model.cjs'?require('../src/model.cjs'):require(name)});
   context.fixture.monitor={shouldYield:()=>yieldFullscreen};
   vm.runInContext(source+'\npreferences=fixture.preferences;dock=fixture.dock;fullscreenMonitor=fixture.monitor;',context);
   return {handlers,files,settingsFile,usageFile,sourcesFile,messages,login,hotkeys,preferences,dock,timers,closes,run:code=>vm.runInContext(code,context),cursor:point=>cursor=point,event:{sender:preferences.webContents,senderFrame:preferences.webContents.mainFrame},confirm:(choice=2)=>response=choice,close:()=>destroyed=true,yieldFullscreen:()=>yieldFullscreen=true};
 }
+test('Windows login startup explicitly enables approval and retains background launch arguments',()=>{
+  const f=fixture();f.run("settings.startupMode='system';applyStartup();");
+  const item=f.login.at(-1);
+  assert.equal(item.name,'AgentHUD.Windows');assert.equal(item.openAtLogin,true);assert.equal(item.enabled,true);
+  assert.equal(item.path,'electron.exe');assert.deepEqual(Array.from(item.args),[path.resolve(root,'..'),'--background']);
+  assert.equal(f.run('process.env.TEMP'),path.resolve(root,'../runtime/temp'));
+  assert.equal(f.run('process.env.TMP'),path.resolve(root,'../runtime/temp'));
+});
+test('manual startup disables both login registration and Windows approval',()=>{
+  const f=fixture();f.run("settings.startupMode='manual';applyStartup();");
+  assert.equal(f.login.at(-1).openAtLogin,false);assert.equal(f.login.at(-1).enabled,false);
+});
 test('stationary hover on an already-visible agent never reopens or repositions the panel',async()=>{
   const f=fixture();f.run('panel=fixture.panel;');
   for(let i=0;i<10;i++)await f.handlers.action(f.event,'hover','codex');
