@@ -119,3 +119,9 @@ test('about page offers only cancel and full reset; unknown pages are rejected',
   assert.equal(result.resetScope,'all');assert.deepEqual(Array.from(f.messages[0].options.buttons),['取消','恢复全部设置']);
   await assert.rejects(f.handlers.action(f.event,'reset-settings','__proto__'),/Unknown settings page/);
 });
+
+
+test('dock measurement accepts only the trusted dock main frame',async()=>{
+ const f=fixture();await assert.rejects(f.handlers.action(f.event,'dock-width',500),/Dock window required/);
+ await assert.rejects(f.handlers.action({sender:f.dock.webContents,senderFrame:{}},'dock-width',500),/Untrusted sender/);
+});

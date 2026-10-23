@@ -28,6 +28,7 @@ function readJSON(file,fallback){try{return JSON.parse(fs.readFileSync(file,'utf
 let settings=sanitizeSettings(readJSON(settingsPath,{}));
 let codex=readJSON(usagePath,null);
 if(codex) codex={...codex,connected:false,stale:true};
+let dockContentWidth=null;
 let dock,panel,preferences,tray,topmostGuard,fullscreenMonitor,pinned=false,panelAgent='codex',refreshTimer,refreshing=false,hoverTimer,hideTimer,baseline=null,dragState=null;
 let sources=readJSON(path.join(runtime,'sources.json'),{});
 const client=new CodexClient();
@@ -78,7 +79,7 @@ function display(){return screen.getAllDisplays().find(d=>d.id===settings.displa
 function placeWindow(window,bounds){const old=window.getBounds();if(Object.keys(bounds).some(key=>old[key]!==bounds[key]))window.setBounds(bounds);}
 function setBounds(){
   if(!dock||dock.isDestroyed())return;
-  placeWindow(dock,dockBounds(display().workArea,settings,settings.agents.length+(settings.showTraffic?1:0)));
+  placeWindow(dock,dockBounds(display().workArea,settings,settings.agents.length+(settings.showTraffic?1:0),dockContentWidth));
   if(panel&&!panel.isDestroyed()){
     const area=display().workArea;
     placeWindow(panel,panelBounds(dock.getBounds(),area,settings.edge,Math.min(390,area.width),Math.min(Math.ceil(470*settings.fontScale/100),area.height)));
@@ -95,7 +96,7 @@ function secureWindow(options,view){
   return w;
 }
 function createDock(){
-  dock=secureWindow({title:'Token Glance · 贴边用量',...dockBounds(display().workArea,settings,settings.agents.length+(settings.showTraffic?1:0)),frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:false},'dock');
+  dock=secureWindow({title:'Token Glance · 贴边用量',...dockBounds(display().workArea,settings,settings.agents.length+(settings.showTraffic?1:0),dockContentWidth),frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:false},'dock');
   dock.once('ready-to-show',()=>{dock.showInactive();logStartup('dock-visible');});
   dock.on('show',()=>topmostGuard?.refresh());
   dock.on('closed',()=>{dock=null;fullscreenMonitor?.setWindows?.(settings.alwaysOnTop?[dock,panel]:[]);});
@@ -183,7 +184,11 @@ ipcMain.handle('settings',(event,patch)=>{
 });
 ipcMain.handle('action',async(event,name,payload)=>{
   requireTrusted(event);
-  if(name==='hover'){clearTimeout(hideTimer);clearTimeout(hoverTimer);if(!pinned&&!(panel?.isVisible()&&panelAgent===payload))hoverTimer=setTimeout(()=>showPanel(payload,false),settings.hoverDelay);}
+  if(name==='dock-width'){
+    if(event.sender!==dock?.webContents)throw Error('Dock window required');
+    if(Number.isInteger(payload)&&payload>=40&&payload<=4096&&payload!==dockContentWidth){dockContentWidth=payload;setBounds();}
+  }
+  else if(name==='hover'){clearTimeout(hideTimer);clearTimeout(hoverTimer);if(!pinned&&!(panel?.isVisible()&&panelAgent===payload))hoverTimer=setTimeout(()=>showPanel(payload,false),settings.hoverDelay);}
   else if(name==='leave'){clearTimeout(hoverTimer);scheduleHide();}
   else if(name==='panel-enter'){clearTimeout(hideTimer);}
   else if(name==='open'){if(panel?.isVisible()&&pinned&&panelAgent===payload)closePanel();else showPanel(payload,true);}
@@ -234,7 +239,7 @@ ipcMain.handle('action',async(event,name,payload)=>{
     const p=screen.getCursorScreenPoint(),d=screen.getDisplayNearestPoint(p),a=d.workArea;
     const edges={left:Math.abs(p.x-a.x),right:Math.abs(p.x-a.x-a.width),top:Math.abs(p.y-a.y),bottom:Math.abs(p.y-a.y-a.height)};
     settings.edge=Object.keys(edges).sort((x,y)=>edges[x]-edges[y])[0];settings.displayId=d.id;
-    const vertical=['left','right'].includes(settings.edge);const bounds=dockBounds(a,settings,settings.agents.length+(settings.showTraffic?1:0));
+    const vertical=['left','right'].includes(settings.edge);const bounds=dockBounds(a,settings,settings.agents.length+(settings.showTraffic?1:0),dockContentWidth);
     settings.position=Math.max(0,Math.min(1,vertical?(dock.getBounds().y-a.y)/(a.height-bounds.height):(dock.getBounds().x-a.x)/(a.width-bounds.width)));
     dragState=null;saveSettings();setBounds();broadcast();
   }

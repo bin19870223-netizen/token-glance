@@ -86,10 +86,10 @@ function sampleUsage(previous,tokens,account,interval,now=Date.now(),continuous=
   samples.push({at:now,tokens,interval,continuous});
   return {usageSamples:samples,sampledAccount:account};
 }
-function dockBounds(area,s,count=1) {
+function dockBounds(area,s,count=1,contentWidth=null) {
   const vertical=s.edge==='left'||s.edge==='right';
   const itemLength=s.ringSize+(s.showNumbers?43:8);
-  const width=vertical?Math.ceil(itemLength+16):Math.ceil(22+count*itemLength);
+  const width=Number.isFinite(contentWidth)?Math.min(area.width,Math.max(40,Math.ceil(contentWidth))):vertical?Math.ceil(itemLength+16):Math.ceil(22+count*itemLength);
   const height=vertical?Math.ceil(22+count*(s.ringSize+12)):s.ringSize+24;
   const gap=s.edgeGap;
   if(s.edge.includes('-'))return {width,height,

@@ -1,5 +1,13 @@
 let current;
 const contents=new WeakMap();
+let measuredWidth=0,measureFrame;
+function measureDock(){
+  cancelAnimationFrame(measureFrame);measureFrame=requestAnimationFrame(()=>{
+    const horizontal=document.body.classList.contains('horizontal');
+    const width=Math.ceil(agents.getBoundingClientRect().width+(horizontal?16:0)+2);
+    if(width!==measuredWidth){measuredWidth=width;window.hud.action('dock-width',width);}
+  });
+}
 function render(state){
   current=state;HUD.applyTheme(state);document.body.classList.toggle('horizontal',!['left','right'].includes(state.settings.edge));
   const ids=HUD.providerIds(state.settings),keys=ids.join(',');
@@ -12,6 +20,7 @@ function render(state){
     const content=HUD.ring(p,state.settings)+(state.settings.showNumbers?`<span class="percent mono" style="--ring-color:${HUD.color(r,true)}">${amount??(r==null?'—':Math.round(r)+'%')}</span>`:'');
     if(contents.get(button)!==content){button.innerHTML=content;contents.set(button,content);}
   }
+  measureDock();
 }
 const agents=document.getElementById('agents');
 agents.addEventListener('mouseover',e=>{const b=e.target.closest('[data-agent]');if(b&&!b.contains(e.relatedTarget))window.hud.action('hover',b.dataset.agent);});
@@ -24,4 +33,5 @@ grip.addEventListener('pointerdown',e=>{dragging=true;grip.setPointerCapture(e.p
 grip.addEventListener('pointermove',()=>{if(dragging)window.hud.action('drag-move');});
 grip.addEventListener('pointerup',()=>{if(dragging){dragging=false;window.hud.action('drag-end');}});
 grip.addEventListener('lostpointercapture',()=>{if(dragging){dragging=false;window.hud.action('drag-end');}});
+document.fonts.ready.then(measureDock);
 window.hud.state().then(render);window.hud.subscribe(render);

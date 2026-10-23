@@ -66,3 +66,11 @@ test('legacy Windows startup selection migrates without enabling agent following
   assert.deepEqual(s.agents,['claude']);assert.equal(s.watchProcesses.claude,'claude.exe, custom.EXE');
   assert.equal(sanitizeSettings({startupMode:'manual',launchAtLogin:true}).launchAtLogin,false);
 });
+
+
+test('measured dock width preserves right-corner anchoring and fits the display',()=>{
+  const area={x:0,y:0,width:1920,height:1040},s=sanitizeSettings({edge:'bottom-right',edgeGap:8});
+  const d=dockBounds(area,s,3,461);
+  assert.equal(d.width,461);assert.equal(d.x+d.width,1912);
+  assert.equal(dockBounds(area,s,3,5000).width,1920);
+});
