@@ -54,3 +54,20 @@ test('7/30 day charts still use account buckets independently of local sampling'
   const provider={buckets:[{date:'2026-10-13',tokens:10},{date:'2026-10-14',tokens:20}],usageSamples:[sample(now-60000,100),sample(now,99999)]};
   for(const days of [7,30]){const data=chartData(provider,days,now);assert.equal(data.total,30);assert.equal(data.slots.length,days);assert.equal(data.end,'2026-10-14');}
 });
+
+test('a cached zero followed by the first lifetime total never becomes 24-hour usage',()=>{
+  const provider={usageSamples:[sample(now-120000,0),sample(now-60000,5592544309),sample(now,5592544329)]};
+  const data=chartData(provider,1,now);assert.equal(data.total,20);assert.equal(data.observed,60000);
+  const first=sampleUsage(null,0,'account-a',60,now-60000);
+  const loaded=sampleUsage(first,5592544309,'account-a',60,now);
+  assert.equal(loaded.usageSamples.at(-1).continuous,false);assert.equal(chartData(loaded,1,now).total,null);
+});
+
+test('a transient zero keeps valid history but cannot bridge the missing counter',()=>{
+  let state=sampleUsage(null,100,'account-a',60,now-240000);
+  state=sampleUsage(state,120,'account-a',60,now-180000);
+  state=sampleUsage(state,0,'account-a',60,now-120000);
+  state=sampleUsage(state,150,'account-a',60,now-60000);
+  state=sampleUsage(state,160,'account-a',60,now);
+  assert.equal(state.usageSamples.length,5);assert.equal(chartData(state,1,now).total,30);
+});

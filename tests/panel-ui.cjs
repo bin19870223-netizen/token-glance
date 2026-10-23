@@ -6,7 +6,7 @@ app.setPath('userData',directory);app.setPath('crashDumps',path.join(directory,'
 const now=Date.now();
 const provider={id:'codex',name:'Codex',connected:true,checkedAt:now,quotas:[],primary:{remaining:80},lifetimeTokens:1000,burnRate:null,
   buckets:[{date:'2026-10-13',tokens:10},{date:'2026-10-14',tokens:20}],
-  usageSamples:[{at:now-60000,tokens:100,interval:60},{at:now,tokens:160,interval:60}]};
+  usageSamples:[{at:now-120000,tokens:0,interval:60},{at:now-60000,tokens:5592544309,interval:60},{at:now,tokens:5592544369,interval:60}]};
 const state={settings:{...defaults},dark:false,providers:{codex:provider},panelAgent:'codex',pinned:false};
 ipcMain.handle('state',()=>state);
 ipcMain.handle('settings',(event,patch)=>{state.settings=sanitizeSettings({...state.settings,...patch});event.sender.send('state',state);return state;});

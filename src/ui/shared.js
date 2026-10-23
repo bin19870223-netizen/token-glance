@@ -47,7 +47,7 @@ function chartData(provider,days,now=Date.now()){
       const a=samples[i-1],b=samples[i];
       if(![a,b].every(s=>s&&Number.isFinite(s.at)&&Number.isSafeInteger(s.tokens)&&s.tokens>=0&&Number.isFinite(s.interval)&&s.interval>=30&&s.interval<=600))continue;
       const duration=b.at-a.at,delta=b.tokens-a.tokens;
-      if(b.continuous===false||a.at<start||b.at>now||duration<=0||duration>Math.max(a.interval,b.interval)*2000+10000||!Number.isSafeInteger(delta)||delta<0)continue;
+      if(b.continuous===false||(a.tokens===0&&b.tokens>0)||a.at<start||b.at>now||duration<=0||duration>Math.max(a.interval,b.interval)*2000+10000||!Number.isSafeInteger(delta)||delta<0)continue;
       const first=Math.max(0,Math.floor((a.at-start)/3600000)),last=Math.min(23,Math.floor((b.at-start)/3600000));
       for(let j=first;j<=last;j++)slots[j].tokens??=0;
       slots[last].tokens+=delta;observed+=duration;

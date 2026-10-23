@@ -82,7 +82,9 @@ function snapshot(raw, previous, now=Date.now()) {
 function sampleUsage(previous,tokens,account,interval,now=Date.now(),continuous=true){
   if(!Number.isSafeInteger(tokens)||tokens<0||!account)return {usageSamples:[],sampledAccount:null};
   let samples=previous?.sampledAccount===account&&Array.isArray(previous.usageSamples)?previous.usageSamples.slice(-3000).filter(s=>Number.isFinite(s.at)&&s.at>now-25*3600000&&s.at<now&&Number.isSafeInteger(s.tokens)&&s.tokens>=0&&Number.isFinite(s.interval)&&s.interval>=30&&s.interval<=600):[];
-  if(samples.length&&tokens<samples.at(-1).tokens)samples=[];
+  if(samples.length&&tokens>0&&tokens<samples.at(-1).tokens)samples=[];
+  // A zero reading may be an uninitialized account summary, not a real counter baseline.
+  continuous=continuous&&tokens>0&&samples.at(-1)?.tokens!==0;
   samples.push({at:now,tokens,interval,continuous});
   return {usageSamples:samples,sampledAccount:account};
 }
