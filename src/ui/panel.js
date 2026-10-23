@@ -26,11 +26,15 @@ function balanceHTML(p){
   const money=(v,c)=>HUD.esc((c==='CNY'?'¥':'$')+v);
   return (p.error?'<div class="offline-note">'+HUD.esc(p.error)+'。以下为上次记录。</div>':'')+p.balance.balances.map(b=>'<div class="quota-row"><div class="between"><span class="quota-label">可用余额 · '+b.currency+'</span><strong class="quota-value">'+money(b.total_balance,b.currency)+'</strong></div></div>'+[['充值余额',b.topped_up_balance],['赠送余额',b.granted_balance]].map(([label,value])=>'<div class="between lifetime"><span>'+label+'</span><strong>'+money(value,b.currency)+'</strong></div>').join('')).join('')+'<p class="chart-note">'+(p.balance.available?'账户有可用余额。':'账户暂无可用余额。')+'来自 DeepSeek 官方余额接口，每 5 分钟更新。此接口未提供 Token 消耗明细。</p>';
 }
+function recentTrafficHTML(p){
+  const rows=p.recentUsage||[6,12,24].map(hours=>({hours,observed:0}));
+  return '<h3>近期流量用量</h3>'+rows.map(r=>'<div class="between lifetime"><span>最近 '+r.hours+' 小时<small style="display:block">已采样 '+Math.floor(r.observed/3600000)+' 小时 '+Math.floor(r.observed/60000)%60+' 分钟</small></span><strong>'+ (r.observed?HUD.bytes(r.used):'—')+'</strong></div>').join('')+'<p class="chart-note">'+HUD.esc(p.historyError||'按订阅累计上传与下载的增量统计，每 5 分钟采样。仅计入窗口内完整采样区间；未运行、连接中断及套餐重置期间不补算。')+'</p>';
+}
 function trafficHTML(p){
   const t=p.traffic;
   if(!t)return '<div class="empty">'+HUD.icon('agents')+'<p>'+HUD.esc(p.error||'尚未连接白月光流量')+'</p><small>在设置 → 数据源中填写本站原始订阅链接。</small></div>';
   const remaining=p.primary?.remaining;
-  return (p.error?'<div class="offline-note">'+HUD.esc(p.error)+'。以下为上次记录。</div>':'')+'<div class="quota-row"><div class="between"><span class="quota-label">剩余流量</span><strong class="quota-value" style="--quota-color:'+HUD.color(remaining,true)+'">'+HUD.bytes(t.remaining)+'</strong></div><div class="quota-track"><div class="quota-fill" style="--fill:'+(remaining??0)+'%;--quota-color:'+HUD.color(remaining)+'"></div></div><div class="between quota-sub"><span>已用 '+HUD.bytes(t.used)+'</span><span>总量 '+HUD.bytes(t.total)+'</span></div></div>'+[['上传',HUD.bytes(t.upload)],['下载',HUD.bytes(t.download)],['到期时间',t.expiresAt?new Date(t.expiresAt*1000).toLocaleString('zh-CN'):'订阅未提供到期时间']].map(([label,value])=>'<div class="between lifetime"><span>'+label+'</span><strong>'+value+'</strong></div>').join('')+'<p class="chart-note">来自订阅服务的流量统计，每 5 分钟更新。流量单位为二进制；套餐重置规则以白月光后台为准。</p>';
+  return (p.error?'<div class="offline-note">'+HUD.esc(p.error)+'。以下为上次记录。</div>':'')+'<div class="quota-row"><div class="between"><span class="quota-label">剩余流量</span><strong class="quota-value" style="--quota-color:'+HUD.color(remaining,true)+'">'+HUD.bytes(t.remaining)+'</strong></div><div class="quota-track"><div class="quota-fill" style="--fill:'+(remaining??0)+'%;--quota-color:'+HUD.color(remaining)+'"></div></div><div class="between quota-sub"><span>已用 '+HUD.bytes(t.used)+'</span><span>总量 '+HUD.bytes(t.total)+'</span></div></div>'+[['上传',HUD.bytes(t.upload)],['下载',HUD.bytes(t.download)],['到期时间',t.expiresAt?new Date(t.expiresAt*1000).toLocaleString('zh-CN'):'订阅未提供到期时间']].map(([label,value])=>'<div class="between lifetime"><span>'+label+'</span><strong>'+value+'</strong></div>').join('')+recentTrafficHTML(p)+'<p class="chart-note">来自订阅服务的流量统计，每 5 分钟更新。流量单位为二进制；套餐重置规则以白月光后台为准。</p>';
 }
 document.addEventListener('click',e=>{
   const t=e.target.closest('[data-tab]');if(t){tab=t.dataset.tab;render(current);}

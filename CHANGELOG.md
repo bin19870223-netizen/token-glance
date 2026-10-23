@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 机场流量增加最近 6 / 12 / 24 小时用量与实际采样覆盖时长，本地保留最近 24 小时增量。
+
 - 接入 DeepSeek 官方 API 余额：本机加密保存密钥，贴边条显示金额，面板显示充值与赠送余额。
 
 - Add optional Baiyueguang subscription traffic to the existing dock, detail panel and data-source settings, using HTTPS subscription response headers and Windows-encrypted local configuration.

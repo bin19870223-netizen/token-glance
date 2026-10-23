@@ -32,7 +32,7 @@ let dockContentWidth=null;
 let dock,panel,preferences,tray,topmostGuard,fullscreenMonitor,pinned=false,panelAgent='codex',refreshTimer,refreshing=false,hoverTimer,hideTimer,baseline=null,dragState=null;
 let sources=readJSON(path.join(runtime,'sources.json'),{});
 const client=new CodexClient();
-const traffic=new TrafficMonitor(path.join(runtime,'traffic-subscription.enc'),safeStorage);
+const traffic=new TrafficMonitor(path.join(runtime,'traffic-subscription.enc'),safeStorage,undefined,path.join(runtime,'traffic-history.json'));
 const deepseek=new DeepSeekMonitor(path.join(runtime,'deepseek-key.enc'),safeStorage);
 let deepseekSaving=false;
 async function refreshDeepSeek(){const pending=deepseek.refresh();broadcast();await pending;broadcast();}

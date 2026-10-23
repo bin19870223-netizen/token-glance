@@ -48,11 +48,14 @@ app.whenReady().then(async()=>{
       return labels;
     }})()`);
     if(fs.readFileSync(monitor.file,'utf8').includes('ui-fixture'))throw Error('Subscription was stored in plaintext');
+    monitor.data.recentUsage=[6,12,24].map((hours,i)=>({hours,used:(i+1)*256*1024**2,upload:0,download:(i+1)*256*1024**2,observed:300000}));update();
     const panel=await windowFor('panel',390,590);await new Promise(r=>setTimeout(r,250));
     const panelChecks=await panel.webContents.executeJavaScript(`(${async function(){
       const check=(ok,text)=>{if(!ok)throw Error(text);return text;},result=[];
       result.push(check(document.body.textContent.includes('30 GiB'),'remaining traffic is shown in binary units'));
       result.push(check(document.body.textContent.includes('70 GiB')&&document.body.textContent.includes('100 GiB'),'used and total match the response headers'));
+      result.push(check([6,12,24].every(h=>document.getElementById('content').textContent.includes('最近 '+h+' 小时')),'6/12/24 hour traffic windows are all displayed'));
+      result.push(check(['256 MiB','512 MiB','768 MiB','已采样 0 小时 5 分钟'].every(t=>document.getElementById('content').textContent.includes(t)),'window totals and actual sampling coverage are shown'));
       result.push(check(!document.body.textContent.includes('Token 活动'),'traffic is not mislabeled as Tokens'));
       result.push(check(document.querySelector('[data-tab="sessions"]').hidden,'irrelevant session controls are hidden'));
       result.push(check(document.getElementById('sessions-shortcut').getBoundingClientRect().width===0,'conversation shortcut is not visually rendered'));

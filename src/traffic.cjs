@@ -47,7 +47,8 @@ function readTraffic(value,request=https.request,redirects=0){
 }
 function emptyTraffic(){return {id:'airport',name:'白月光流量',kind:'traffic',connected:false,stale:false,primary:null,quotas:[],sessions:[],error:'',traffic:null};}
 class TrafficMonitor{
-  constructor(file,secure,read=readTraffic){this.file=file;this.secure=secure;this.read=read;this.data=emptyTraffic();this.loading=false;this.generation=0;}
+  constructor(file,secure,read=readTraffic,historyFile=null){this.file=file;this.secure=secure;this.read=read;this.data=emptyTraffic();this.loading=false;this.generation=0;this.history=historyFile?new (require('./traffic-history.cjs').TrafficHistory)(historyFile):null;}
+  accept(data){if(this.history&&data.traffic){try{data.recentUsage=this.history.sample(data);}catch{data.historyError='本机流量采样保存失败';}}this.data=data;}
   configured(){return fs.existsSync(this.file);}
   async configure(value){
     const url=subscriptionURL(value).href;
@@ -55,17 +56,17 @@ class TrafficMonitor{
     // Validate against the service before replacing an existing working connection.
     const generation=++this.generation,data=await this.read(url),encrypted=this.secure.encryptString(url);
     if(generation!==this.generation)throw Error('连接已取消，请重试');
-    fs.writeFileSync(this.file+'.tmp',encrypted);fs.renameSync(this.file+'.tmp',this.file);this.data=data;
+    fs.writeFileSync(this.file+'.tmp',encrypted);fs.renameSync(this.file+'.tmp',this.file);this.history?.reset();this.accept(data);
   }
-  clear(){this.generation++;for(const file of [this.file,this.file+'.tmp'])if(fs.existsSync(file))fs.unlinkSync(file);this.data=emptyTraffic();}
+  clear(){this.generation++;for(const file of [this.file,this.file+'.tmp'])if(fs.existsSync(file))fs.unlinkSync(file);this.history?.reset();this.data=emptyTraffic();}
   async refresh(){
     if(!this.configured()||this.loading)return;
     this.loading=true;const generation=this.generation;
     try{
       if(!this.secure?.isEncryptionAvailable())throw Error('Windows 本机加密暂不可用，请重新连接');
       let url;try{url=this.secure.decryptString(fs.readFileSync(this.file));}catch{throw Error('本机订阅无法解密，请重新连接');}
-      const data=await this.read(url);if(generation===this.generation)this.data=data;
-    }catch(error){if(generation===this.generation)this.data={...this.data,connected:false,stale:!!this.data.traffic,error:error.message};}
+      const data=await this.read(url);if(generation===this.generation)this.accept(data);
+    }catch(error){if(generation===this.generation){this.history?.interrupt();this.data={...this.data,connected:false,stale:!!this.data.traffic,error:error.message};}}
     finally{this.loading=false;}
   }
 }
