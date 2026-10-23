@@ -27,6 +27,12 @@ test('handles fragmented output and ignores invalid protocol lines',t=>{
   f.child.stdout.write('top\r\n');assert.equal(f.monitor.shouldYield(),false);
   f.send('arbitrary data');assert.equal(f.monitor.shouldYield(),false);
 });
+test('notification quiet policy includes windowed games without changing exclusive topmost policy',t=>{
+ const f=fixture(t);assert.equal(f.monitor.shouldDeferNotifications(),true);
+ f.send('desktop');f.send('quiet');assert.equal(f.monitor.shouldYield(),false);assert.equal(f.monitor.shouldDeferNotifications(),true);
+ f.send('notify');assert.equal(f.monitor.shouldDeferNotifications(),false);
+ f.child.emit('exit',1);assert.equal(f.monitor.shouldDeferNotifications(),true);
+});
 test('coverage requests restore desktop overlays but never interrupt exclusive fullscreen',t=>{
   let restored=0;const f=fixture(t,()=>restored++);
   f.send('restore');assert.equal(restored,0);

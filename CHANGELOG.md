@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- 将 30 分钟 20 GiB 异常增量及套餐 80% / 95% 告警接入 Token Glance，保存待提醒记录并合并通知。
+- 游戏/全屏/系统静默状态下延后通知，独立于原有独占全屏置顶策略；通知不打开窗口、不切换焦点。
+- 原生检测程序改为无控制台 GUI 子系统。
+
 ## 0.1.3 — Experimental preview (2026-10-23)
 
 - Add in-app automatic update checks and compatible bundle downloads from this repository, with user-controlled restart, SHA-256 verification, old-program backup and failure rollback. Preserve runtime settings, usage records and encrypted credentials.

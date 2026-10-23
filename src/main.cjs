@@ -7,6 +7,7 @@ const {CodexClient}=require('./codex.cjs');
 const {TrafficMonitor}=require('./traffic.cjs');
 const {DeepSeekMonitor}=require('./deepseek.cjs');
 const {AppUpdater}=require('./updater.cjs');
+const {TrafficAlerts}=require('./traffic-alerts.cjs');
 const {maintainTopmost}=require('./topmost.cjs');
 const {monitorFullscreen}=require('./fullscreen.cjs');
 const {defaults,sanitizeSettings,settingsPages,resetSettings,snapshot,sampleUsage,dockBounds,panelBounds}=require('./model.cjs');
@@ -39,8 +40,23 @@ const updater=new AppUpdater(root,()=>broadcast());
 let updateTimer,updateInitialTimer;
 let deepseekSaving=false;
 async function refreshDeepSeek(){const pending=deepseek.refresh();broadcast();await pending;broadcast();}
+const trafficAlerts=new TrafficAlerts(path.join(runtime,'traffic-alerts.json'));
+let noticeTimer,noticeError='',trafficObserveError='',codexPendingNotice,flushingNotices=false;
+function showQuietNotice(notice){
+  return new Promise(resolve=>{
+    if(fullscreenMonitor?.shouldDeferNotifications()!==false||!Notification.isSupported()){resolve(false);return;}
+    let timer;try{const notification=new Notification({...notice,silent:true});notification.once('show',()=>{clearTimeout(timer);resolve(true);});notification.once('failed',()=>{clearTimeout(timer);resolve(false);});timer=setTimeout(()=>resolve(false),5000);notification.show();}catch{clearTimeout(timer);resolve(false);}
+  });
+}
+async function flushNotices(){
+  if(flushingNotices)return;flushingNotices=true;
+  try{await trafficAlerts.flush(fullscreenMonitor?.shouldDeferNotifications()!==false,showQuietNotice,settings.trafficAlertsEnabled);noticeError='';
+    if(codexPendingNotice&&fullscreenMonitor?.shouldDeferNotifications()===false){const notice=codexPendingNotice;codexPendingNotice=null;if(!await showQuietNotice(notice))codexPendingNotice=notice;}
+  }catch{noticeError='告警记录保存失败，请检查运行目录是否可写';logStartup('traffic-alerts-state-error');}
+  finally{flushingNotices=false;}
+}
 let trafficTimer,trafficSaving=false;
-async function refreshTraffic(){const pending=traffic.refresh();broadcast();await pending;broadcast();}
+async function refreshTraffic(){const pending=traffic.refresh();broadcast();await pending;try{trafficAlerts.observe(traffic.data,settings.trafficAlertsEnabled);trafficObserveError='';}catch{trafficObserveError='告警记录保存失败';}await flushNotices();broadcast();}
 
 let connectionError='',hotkeyError='',usageSamplingStarted=false,autoStarted=process.argv.includes('--agent-auto');
 const names={codex:'Codex',claude:'Claude',deepseek:'DeepSeek',airport:'白月光流量'};
@@ -58,7 +74,7 @@ function otherProvider(id){
   }catch{return {id,name:names[id],connected:false,stale:true,quotas:[],buckets:[],sessions:[],primary:null,lifetimeTokens:null};}
 }
 function allProviders(){return {codex:codex || {id:'codex',name:'Codex',connected:false,quotas:[],buckets:[],sessions:[],primary:null,lifetimeTokens:null},claude:otherProvider('claude'),deepseek:deepseek.configured()?deepseek.data:otherProvider('deepseek'),airport:traffic.data};}
-function state(){return {appVersion:updater.current,updates:updater.state,deepseek:{configured:deepseek.configured(),loading:deepseek.loading||deepseekSaving},traffic:{configured:traffic.configured(),loading:traffic.loading||trafficSaving},settings,providers:allProviders(),pinned,panelAgent,refreshing,connectionError,hotkeyError,dark:settings.theme==='dark'||settings.theme==='system'&&nativeTheme.shouldUseDarkColors,displays:screen.getAllDisplays().map(d=>({id:d.id,name:d.label || `显示器 ${d.id}`,primary:d.id===screen.getPrimaryDisplay().id})),sources:{claude:!!sources.claude,deepseek:!!sources.deepseek}};}
+function state(){return {trafficAlerts:{...trafficAlerts.view(),quiet:fullscreenMonitor?.shouldDeferNotifications()!==false,error:trafficObserveError||noticeError},appVersion:updater.current,updates:updater.state,deepseek:{configured:deepseek.configured(),loading:deepseek.loading||deepseekSaving},traffic:{configured:traffic.configured(),loading:traffic.loading||trafficSaving},settings,providers:allProviders(),pinned,panelAgent,refreshing,connectionError,hotkeyError,dark:settings.theme==='dark'||settings.theme==='system'&&nativeTheme.shouldUseDarkColors,displays:screen.getAllDisplays().map(d=>({id:d.id,name:d.label || `显示器 ${d.id}`,primary:d.id===screen.getPrimaryDisplay().id})),sources:{claude:!!sources.claude,deepseek:!!sources.deepseek}};}
 function broadcast(){const value=state();for(const w of [dock,panel,preferences])if(w&&!w.isDestroyed())w.webContents.send('state',value);updateTray();}
 function saveSettings(){fs.writeFileSync(settingsPath+'.tmp',JSON.stringify(settings,null,2));fs.renameSync(settingsPath+'.tmp',settingsPath);}
 function logStartup(event){
@@ -101,14 +117,14 @@ function secureWindow(options,view){
 function createDock(){
   dock=secureWindow({title:'Token Glance · 贴边用量',...dockBounds(display().workArea,settings,settings.agents.length+(settings.showTraffic?1:0),dockContentWidth),frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:false},'dock');
   dock.once('ready-to-show',()=>{dock.showInactive();logStartup('dock-visible');});
-  dock.on('show',()=>topmostGuard?.refresh());
+  dock.on('show',()=>{topmostGuard?.refresh();flushNotices();});
   dock.on('closed',()=>{dock=null;fullscreenMonitor?.setWindows?.(settings.alwaysOnTop?[dock,panel]:[]);});
   setBounds();
 }
 function ensurePanel(){
   if(panel&&!panel.isDestroyed())return;
   panel=secureWindow({title:'Token Glance · 用量概览',width:390,height:470,frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:false},'panel');
-  panel.on('show',()=>topmostGuard?.refresh());
+  panel.on('show',()=>{topmostGuard?.refresh();flushNotices();});
   panel.once('ready-to-show',()=>{setBounds();if(fullscreenMonitor?.shouldYield())panel.showInactive();else if(pinned){panel.show();panel.focus();}else{panel.showInactive();panel.moveTop();}broadcast();});
   panel.on('blur',()=>{if(!pinned)scheduleHide();});
   panel.on('closed',()=>{panel=null;fullscreenMonitor?.setWindows?.(settings.alwaysOnTop?[dock,panel]:[]);});
@@ -151,7 +167,7 @@ async function refresh(){
     // Persist only aggregate usage. Session names and IDs remain in memory.
     fs.writeFileSync(usagePath,JSON.stringify({...next,sessions:[]}));
     if(settings.alertEnabled&&next.primary&&next.primary.remaining<=settings.alertThreshold&&(!old?.primary||old.primary.remaining>settings.alertThreshold)&&Notification.isSupported()){
-      new Notification({title:'Codex 额度提醒',body:`${next.primary.label}剩余 ${Math.round(next.primary.remaining)}%`,silent:true}).show();
+      codexPendingNotice={title:'Codex 额度提醒',body:`${next.primary.label}剩余 ${Math.round(next.primary.remaining)}%`};flushNotices();
     }
   }catch(e){
     usageSamplingStarted=false;
@@ -227,8 +243,8 @@ ipcMain.handle('action',async(event,name,payload)=>{
     if(trafficSaving)return {ok:false,message:'连接正在验证，请稍候'};
     trafficSaving=true;broadcast();
     try{
-      if(name==='traffic-clear')traffic.clear();
-      else await traffic.configure(payload);
+      if(name==='traffic-clear'){traffic.clear();trafficAlerts.reset();}
+      else{await traffic.configure(payload);trafficAlerts.reset();trafficAlerts.observe(traffic.data,settings.trafficAlertsEnabled);flushNotices();}
       if(name==='traffic-connect')updateSettings(sanitizeSettings({...settings,showTraffic:true}));
       return {ok:true};
     }catch(error){return {ok:false,message:error.message};}
@@ -278,12 +294,13 @@ else{
     Menu.setApplicationMenu(null);
     const icon=nativeImage.createFromPath(path.join(__dirname,'ui','assets','chatgpt.png')).resize({width:20,height:20});
     tray=new Tray(icon);tray.on('click',()=>panel?.isVisible()?closePanel():showPanel('codex',true));tray.on('double-click',showSettings);
-    fullscreenMonitor=monitorFullscreen(path.join(runtime,'FullscreenState.exe'),()=>topmostGuard?.refresh());
+    fullscreenMonitor=monitorFullscreen(path.join(runtime,'FullscreenState.exe'),()=>{topmostGuard?.refresh();flushNotices();});
     topmostGuard=maintainTopmost(()=>[dock,panel],()=>settings.alwaysOnTop&&!fullscreenMonitor.shouldYield());
     saveSettings();applyStartup();createDock();applyHotkey();updateTray();refresh();
     refreshTraffic();refreshDeepSeek();trafficTimer=setInterval(()=>{refreshTraffic();refreshDeepSeek();},300000);trafficTimer.unref();
     updateInitialTimer=setTimeout(()=>{if(settings.autoUpdate)updater.check(true);},20000);
     updateTimer=setInterval(()=>{if(settings.autoUpdate)updater.check(true);},6*3600000);updateTimer.unref();
+    noticeTimer=setInterval(()=>{flushNotices().then(()=>broadcast());},15000);noticeTimer.unref();
     nativeTheme.on('updated',broadcast);
     screen.on('display-metrics-changed',()=>{setBounds();broadcast();});
     screen.on('display-removed',()=>{setBounds();broadcast();});
@@ -292,4 +309,4 @@ else{
   }).catch(error=>{logStartup(`failed ${error.name}`);app.exit(1);});
 }
 app.on('window-all-closed',()=>{});
-app.on('before-quit',()=>{clearTimeout(updateInitialTimer);clearInterval(updateTimer);clearInterval(trafficTimer);topmostGuard?.stop();fullscreenMonitor?.stop();clearTimeout(refreshTimer);clearTimeout(hideTimer);clearTimeout(hoverTimer);globalShortcut.unregisterAll();client.stop();tray?.destroy();});
+app.on('before-quit',()=>{clearInterval(noticeTimer);clearTimeout(updateInitialTimer);clearInterval(updateTimer);clearInterval(trafficTimer);topmostGuard?.stop();fullscreenMonitor?.stop();clearTimeout(refreshTimer);clearTimeout(hideTimer);clearTimeout(hoverTimer);globalShortcut.unregisterAll();client.stop();tray?.destroy();});

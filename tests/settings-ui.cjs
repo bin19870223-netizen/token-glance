@@ -6,7 +6,7 @@ const {defaults,resetSettings}=require('../src/model.cjs');
 const root=path.resolve(__dirname,'..');
 app.setPath('userData',path.join(root,'work','slider-test-runtime'));
 app.setPath('crashDumps',path.join(root,'work','slider-test-runtime','crashes'));
-const state={settings:{...defaults},dark:false,providers:{codex:{id:'codex',name:'Codex',connected:false},claude:{name:'Claude'},deepseek:{name:'DeepSeek'}},sources:{},displays:[{id:1,name:'测试显示器',primary:true}]};
+const state={trafficAlerts:{quiet:true,pending:1,recent:[{at:1900000000000,body:'套餐已用 80.0%，已达到 80% 告警线。',status:'待提醒'}]},settings:{...defaults},dark:false,providers:{codex:{id:'codex',name:'Codex',connected:false},claude:{name:'Claude'},deepseek:{name:'DeepSeek'}},sources:{},displays:[{id:1,name:'测试显示器',primary:true}]};
 const writes=[];
 let confirmReset=null;
 ipcMain.handle('state',()=>state);
@@ -61,6 +61,8 @@ app.whenReady().then(async()=>{
       // Hidden BrowserWindows do not emit native focusout when blurred.
       unsubmitted.dispatchEvent(new FocusEvent('focusout',{bubbles:true}));check(unsubmitted.value==='7','leaving without Enter restores saved value');
       const slider=document.getElementById('edgeGap');slider.value='12';slider.dispatchEvent(new Event('input',{bubbles:true}));await tick();check(document.getElementById('edgeGap-number').value==='12','dragging updates numeric display');
+      await navigate('notifications');check(document.body.innerText.includes('30 分钟新增 ≥20 GiB')&&document.body.innerText.includes('当前静默'),'airport thresholds and quiet state shown');
+      const alertSwitch=document.querySelector('[data-toggle="trafficAlertsEnabled"]');check(alertSwitch.getAttribute('aria-checked')==='true','traffic alerts default enabled');alertSwitch.click();await tick();check((await window.hud.state()).settings.trafficAlertsEnabled===false,'airport alert switch saves');check(document.body.innerText.includes('套餐已用 80.0%')&&document.body.innerText.includes('1 条'),'pending and recent local alerts visible');
       for(const page of ['appearance','layout','display','startup','sources','notifications','about']){await navigate(page);check(!!document.getElementById('reset-settings'),'global reset available on '+page);}
       await navigate('layout');document.getElementById('reset-settings').click();await tick();
       check(document.getElementById('edgeGap-number').value==='12'&&!document.getElementById('reset-settings').disabled,'cancelled reset keeps current settings and enables button');
@@ -80,6 +82,7 @@ app.whenReady().then(async()=>{
     }
     const png=await win.webContents.capturePage();fs.writeFileSync(path.join(root,'work','sliders-preview.png'),png.toPNG());
     fs.writeFileSync(path.join(root,'work','slider-test-result.json'),JSON.stringify({passed:results.length,checks:results,writes:writes.length},null,2));
+    await win.webContents.executeJavaScript("document.querySelector('[data-page=notifications]').click()");await new Promise(r=>setTimeout(r,80));fs.writeFileSync(path.join(root,'work','traffic-alert-settings-preview.png'),(await win.webContents.capturePage()).toPNG());
     console.log(`PASS: ${results.length} UI checks; ${writes.length} isolated setting writes`);app.exit(0);
   }catch(error){console.error(error);app.exit(1);}
 });

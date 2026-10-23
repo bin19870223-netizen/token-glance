@@ -12,12 +12,33 @@ internal static class FullscreenState {
     [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr window);
     [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr window);
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out Rect rect);
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern IntPtr MonitorFromWindow(IntPtr window, uint flags);
+    [DllImport("user32.dll")] private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfo info);
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr window, int attribute, out int value, int size);
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
+    [StructLayout(LayoutKind.Sequential)] private struct MonitorInfo { public int Size; public Rect Monitor, Work; public uint Flags; }
     private static volatile bool stopped;
     private static long[] handles = new long[0];
     internal static string Classify(int result, int state) { return result < 0 ? "unknown" : state == 3 ? "exclusive" : "desktop"; }
+    internal static bool DeferNotifications(int result, int state, bool fullscreen, bool game) { return result < 0 || state != 5 || fullscreen || game; }
+    private static IntPtr lastForeground;
+    private static string foregroundProcess;
+    private static bool Quiet(int result, int state) {
+        IntPtr foreground = GetForegroundWindow();
+        if (foreground == IntPtr.Zero) return true;
+        if (foreground != lastForeground) {
+            lastForeground = foreground; foregroundProcess = null;
+            try { uint pid; GetWindowThreadProcessId(foreground, out pid); using (var process = System.Diagnostics.Process.GetProcessById((int)pid)) foregroundProcess = process.ProcessName; } catch { }
+        }
+        if (foregroundProcess == null) return true;
+        string name = foregroundProcess.ToLowerInvariant();
+        bool game = name == "wow" || name == "wowclassic" || name == "wowclassict" || name == "wowclassic_t";
+        Rect rect; var monitor = new MonitorInfo(); monitor.Size = Marshal.SizeOf(typeof(MonitorInfo));
+        bool fullscreen = name != "explorer" && IsWindowVisible(foreground) && !IsIconic(foreground) && GetWindowRect(foreground, out rect) && GetMonitorInfo(MonitorFromWindow(foreground, 2), ref monitor) && rect.Left <= monitor.Monitor.Left && rect.Top <= monitor.Monitor.Top && rect.Right >= monitor.Monitor.Right && rect.Bottom >= monitor.Monitor.Bottom;
+        return DeferNotifications(result, state, fullscreen, game);
+    }
     private static bool Covered(long[] windows) {
         foreach (long handle in windows) {
             IntPtr target = new IntPtr(handle); Rect area; uint owner;
@@ -48,12 +69,14 @@ internal static class FullscreenState {
             stopped = true;
         });
         input.IsBackground = true; input.Start();
-        string previous = null;
+        string previous = null, previousNotice = null;
         while (!stopped) {
             int state;
             int result = SHQueryUserNotificationState(out state);
             string current = Classify(result, state);
             if (current != previous) { Console.WriteLine(current); Console.Out.Flush(); previous = current; }
+            string notice = Quiet(result, state) ? "quiet" : "notify";
+            if (notice != previousNotice) { Console.WriteLine(notice); Console.Out.Flush(); previousNotice = notice; }
             if (current == "desktop" && Covered(Interlocked.CompareExchange(ref handles, null, null))) { Console.WriteLine("restore"); Console.Out.Flush(); }
             Thread.Sleep(250);
         }

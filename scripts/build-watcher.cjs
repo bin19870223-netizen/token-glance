@@ -17,7 +17,7 @@ if(result.error)throw result.error;
 if(result.status!==0){console.error('Build failed. Close an existing watcher before rebuilding its executable.');process.exit(result.status||1);}
 console.log('Built '+path.relative(root,output));
 if(!test){
-  const fullscreen=spawnSync(compiler,['/nologo','/target:exe','/out:'+path.join(directory,'FullscreenState.exe'),path.join(root,'src','FullscreenState.cs')],{cwd:root,stdio:'inherit',windowsHide:true});
+  const fullscreen=spawnSync(compiler,['/nologo','/target:winexe','/out:'+path.join(directory,'FullscreenState.exe'),path.join(root,'src','FullscreenState.cs')],{cwd:root,stdio:'inherit',windowsHide:true});
   if(fullscreen.error)throw fullscreen.error;if(fullscreen.status!==0)process.exit(fullscreen.status||1);
   console.log('Built runtime/FullscreenState.exe');
 }
