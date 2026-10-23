@@ -10,6 +10,8 @@ const header='upload=1073741824; download=2147483648; total=10737418240; expire=
 
 test('traffic link accepts only provider HTTPS URLs without embedded credentials',()=>{
   assert.equal(subscriptionURL(url).origin,'https://www.asiassn.com');
+  assert.equal(subscriptionURL('https://test.qinyues4.cc/subscription/fixture').hostname,'test.qinyues4.cc');
+  for(const bad of ['https://qinyues4.cc.evil.invalid/x','http://test.qinyues4.cc/x','https://user:pass@test.qinyues4.cc/x'])assert.throws(()=>subscriptionURL(bad));
   for(const bad of ['http://www.asiassn.com/x','https://asiassn.com.evil.invalid/x','https://127.0.0.1/x','https://user:pass@asiassn.com/x','https://www.asiassn.com:444/x','file:///x','https://www.asiassn.com/x#secret'])assert.throws(()=>subscriptionURL(bad));
 });
 test('traffic totals are in bytes and remaining percentage is separate from Tokens',()=>{

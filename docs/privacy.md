@@ -4,7 +4,7 @@
 
 本工具 → 本机官方 `codex.exe app-server --listen stdio://` → Codex 自己的账号服务。
 
-启用白月光流量后：本工具 → 用户手动填写的 `asiassn.com` HTTPS 订阅地址，每 5 分钟读取 `Subscription-Userinfo` 响应头。使用 Clash 兼容 User-Agent，不读取或保存订阅正文中的节点配置，不导入浏览器 Cookie，不自动登录网站；拒绝跨站跳转。
+启用白月光流量后：本工具 → 用户手动填写的 `asiassn.com` / `qinyues4.cc`（含子域名）HTTPS 订阅地址，每 5 分钟读取 `Subscription-Userinfo` 响应头。使用 Clash 兼容 User-Agent，不读取或保存订阅正文中的节点配置，不导入浏览器 Cookie，不自动登录网站；拒绝跨站跳转。
 
 工具允许 `initialize`、`account/read`、`account/rateLimits/read`、`account/usage/read`、`thread/list`，以及协议初始化通知；没有发起模型任务或审批请求的接口。实验能力通过初始化显式启用。`account/read` 不请求刷新凭据；本工具不解析 Codex 凭据文件。
 

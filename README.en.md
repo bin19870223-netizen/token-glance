@@ -45,7 +45,7 @@ The HUD recovers above ordinary apps when covered, without taking keyboard focus
 
 ## Data sources
 
-Baiyueguang subscription traffic is available under Settings → Data sources. Enter an original Clash / Mihomo HTTPS subscription URL hosted on `asiassn.com` or its subdomains. After validation, a traffic ring joins the existing dock and opens remaining/used/total traffic, upload/download and expiry details. Usage updates every five minutes and requires the `Subscription-Userinfo` header. The link is encrypted locally using Windows-backed Electron safeStorage, never returned in UI state, and should not be shared in chats or public repositories.
+Baiyueguang subscription traffic is available under Settings → Data sources. Enter an original Clash / Mihomo HTTPS subscription URL hosted on `asiassn.com`, `qinyues4.cc` or their subdomains. After validation, a traffic ring joins the existing dock and opens remaining/used/total traffic, upload/download and expiry details. Usage updates every five minutes and requires the `Subscription-Userinfo` header. The link is encrypted locally using Windows-backed Electron safeStorage, never returned in UI state, and should not be shared in chats or public repositories.
 
 | Source | Current support | Limitations |
 | --- | --- | --- |

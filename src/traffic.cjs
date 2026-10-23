@@ -4,7 +4,8 @@ const https=require('node:https');
 function subscriptionURL(value){
   if(typeof value!=='string'||value.length>4096)throw Error('请填写白月光的 HTTPS 订阅链接');
   let url;try{url=new URL(value.trim());}catch{throw Error('订阅链接格式不正确');}
-  if(url.protocol!=='https:'||url.username||url.password||url.hash||(url.port&&url.port!=='443')||!(url.hostname==='asiassn.com'||url.hostname.endsWith('.asiassn.com')))throw Error('仅支持 asiassn.com 及其子域名的 HTTPS 订阅链接');
+  const supportedHost=['asiassn.com','qinyues4.cc'].some(host=>url.hostname===host||url.hostname.endsWith('.'+host));
+  if(url.protocol!=='https:'||url.username||url.password||url.hash||(url.port&&url.port!=='443')||!supportedHost)throw Error('请使用白月光的 HTTPS 原始订阅链接（asiassn.com 或 qinyues4.cc 及其子域名）');
   return url;
 }
 function parseTraffic(header,now=Date.now()){
