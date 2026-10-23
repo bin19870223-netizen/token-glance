@@ -102,3 +102,8 @@ Provider logos come from LobeHub's Lobe Icons and identify their respective serv
 
 
 DeepSeek API balance: enter your official API key locally under Settings → Data sources → DeepSeek API balance. The key is encrypted with Windows-backed safeStorage. The app queries the fixed official balance endpoint every five minutes, showing available, topped-up and granted balances. This endpoint does not provide token usage; no token counts or quota percentages are inferred.
+
+
+Automatic updates: Settings → About → Software updates. The app checks this repository's GitHub Releases (including previews) after startup and every six hours, downloads compatible bundles and waits for Restart and update. Settings, usage records and encrypted keys remain in runtime. Runtime changes or source-only releases require a manual upgrade. Old program files are backed up under runtime/updates.
+
+For maintainers, publish a vX.Y.Z Release matching package.json after pushing the source. The release-update workflow tests and uploads token-glance-update.json; npm run build:update can generate it locally. The first updater-enabled version requires a manual upgrade. Update authenticity relies on this GitHub repository, HTTPS and GitHub's asset SHA-256, not independent code signing.

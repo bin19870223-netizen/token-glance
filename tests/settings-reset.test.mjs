@@ -24,7 +24,7 @@ function fixture(){
   const area={x:0,y:0,width:1920,height:1040},display={id:1,workArea:area};
   const electron={app:fakeApp,ipcMain:{handle:(name,fn)=>handlers[name]=fn},screen:{getAllDisplays:()=>[display],getPrimaryDisplay:()=>display,getCursorScreenPoint:()=>cursor},nativeTheme:{shouldUseDarkColors:false},globalShortcut:{unregisterAll(){},register:key=>{hotkeys.push(key);return true;}},dialog:{showMessageBox:async(owner,options)=>{messages.push({owner,options});return {response};}}};
   const fakeFS={mkdirSync(){},readFileSync:file=>{if(!files.has(file))throw Error('missing');return files.get(file);},writeFileSync:(file,text)=>files.set(file,text),renameSync:(from,to)=>{files.set(to,files.get(from));files.delete(from);}};
-  const context=vm.createContext({__dirname:root,process:{argv:[],execPath:'electron.exe',env:{}},fixture:{preferences,dock,panel},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},require:name=>name==='electron'?electron:name==='node:fs'?fakeFS:name==='./deepseek.cjs'?require('../src/deepseek.cjs'):name==='./traffic.cjs'?require('../src/traffic.cjs'):name==='./codex.cjs'?{CodexClient:class{}}:name==='./fullscreen.cjs'?require('../src/fullscreen.cjs'):name==='./topmost.cjs'?require('../src/topmost.cjs'):name==='./model.cjs'?require('../src/model.cjs'):require(name)});
+  const context=vm.createContext({__dirname:root,process:{argv:[],execPath:'electron.exe',env:{}},fixture:{preferences,dock,panel},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},require:name=>name==='electron'?electron:name==='node:fs'?fakeFS:name==='./updater.cjs'?{AppUpdater:class{constructor(){this.current='0.1.2';this.state={status:'idle'};}}}:name==='./deepseek.cjs'?require('../src/deepseek.cjs'):name==='./traffic.cjs'?require('../src/traffic.cjs'):name==='./codex.cjs'?{CodexClient:class{}}:name==='./fullscreen.cjs'?require('../src/fullscreen.cjs'):name==='./topmost.cjs'?require('../src/topmost.cjs'):name==='./model.cjs'?require('../src/model.cjs'):require(name)});
   context.fixture.monitor={shouldYield:()=>yieldFullscreen};
   vm.runInContext(source+'\npreferences=fixture.preferences;dock=fixture.dock;fullscreenMonitor=fixture.monitor;',context);
   return {handlers,files,settingsFile,usageFile,sourcesFile,messages,login,hotkeys,preferences,dock,timers,closes,run:code=>vm.runInContext(code,context),cursor:point=>cursor=point,event:{sender:preferences.webContents,senderFrame:preferences.webContents.mainFrame},confirm:(choice=2)=>response=choice,close:()=>destroyed=true,yieldFullscreen:()=>yieldFullscreen=true};
@@ -113,10 +113,11 @@ test('page reset applies layout while preserving startup and hotkey',async()=>{
   assert.equal(result.settings.startupMode,before.startupMode);assert.equal(result.settings.hotkey,before.hotkey);
   assert.equal(f.login.length,0);assert.equal(f.hotkeys.length,0);
 });
-test('about page offers only cancel and full reset; unknown pages are rejected',async()=>{
+test('about page resets its auto-update preference independently; unknown pages are rejected',async()=>{
   const f=fixture();f.confirm(1);
   const result=await f.handlers.action(f.event,'reset-settings','about');
-  assert.equal(result.resetScope,'all');assert.deepEqual(Array.from(f.messages[0].options.buttons),['取消','恢复全部设置']);
+  assert.equal(result.resetScope,'about');assert.deepEqual(Array.from(f.messages[0].options.buttons),['取消','仅恢复本页（关于）','恢复全部设置']);
+  assert.equal(result.settings.autoUpdate,true);
   await assert.rejects(f.handlers.action(f.event,'reset-settings','__proto__'),/Unknown settings page/);
 });
 
@@ -124,4 +125,12 @@ test('about page offers only cancel and full reset; unknown pages are rejected',
 test('dock measurement accepts only the trusted dock main frame',async()=>{
  const f=fixture();await assert.rejects(f.handlers.action(f.event,'dock-width',500),/Dock window required/);
  await assert.rejects(f.handlers.action({sender:f.dock.webContents,senderFrame:{}},'dock-width',500),/Untrusted sender/);
+});
+
+
+test('update operations require the settings window main frame',async()=>{
+ const f=fixture();for(const name of ['update-check','update-download','update-install','update-release']){
+  await assert.rejects(f.handlers.action({sender:f.dock.webContents,senderFrame:f.dock.webContents.mainFrame},name),/Settings window required/);
+  await assert.rejects(f.handlers.action({...f.event,senderFrame:{}},name),/Untrusted sender/);
+ }
 });

@@ -15,7 +15,8 @@
     "test:watcher": "node scripts/build-watcher.cjs --test",
     "test:ui": "node scripts/test-ui.cjs",
     "test:topmost": "node scripts/test-topmost.cjs",
-    "export:source": "node scripts/export-source.cjs"
+    "export:source": "node scripts/export-source.cjs",
+    "build:update": "node scripts/build-update.cjs"
   },
   "devDependencies": {
     "electron": "44.7.1"

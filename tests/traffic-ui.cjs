@@ -63,7 +63,7 @@ app.whenReady().then(async()=>{
       result.push(check(document.getElementById('sessions-shortcut').getBoundingClientRect().width===0,'conversation shortcut is not visually rendered'));
       return result;
     }})()`);
-    const output='E:\\Codex\\deliverable\\Token-Glance-traffic-monitor-20261023';fs.mkdirSync(output,{recursive:true});
+    const output=path.resolve(__dirname,'../work/traffic-preview');fs.mkdirSync(output,{recursive:true});
     fs.writeFileSync(path.join(output,'traffic-panel-demo.png'),(await panel.webContents.capturePage()).toPNG());
     await settings.webContents.executeJavaScript("document.getElementById('traffic-link').scrollIntoView({block:'center'});");await new Promise(r=>setTimeout(r,150));
     fs.writeFileSync(path.join(output,'traffic-settings-demo.png'),(await settings.webContents.capturePage()).toPNG());

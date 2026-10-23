@@ -1,0 +1,26 @@
+const {app,BrowserWindow,ipcMain}=require('electron');
+const fs=require('node:fs'),path=require('node:path');
+const {AppUpdater,hash}=require('../src/updater.cjs'),{build}=require('../scripts/build-update.cjs'),{defaults}=require('../src/model.cjs');
+const base=path.resolve(__dirname,'../work/updater-ui-runtime');fs.mkdirSync(base,{recursive:true});
+app.setPath('userData',base);app.setPath('temp',base);app.setPath('crashDumps',path.join(base,'crashes'));app.on('window-all-closed',()=>{});
+const root=fs.mkdtempSync(path.join(base,'fixture-'));fs.mkdirSync(path.join(root,'runtime'));fs.cpSync(path.resolve(__dirname,'../src'),path.join(root,'src'),{recursive:true});
+const currentPackage=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../package.json'),'utf8'));currentPackage.version='0.1.2';fs.writeFileSync(path.join(root,'package.json'),JSON.stringify(currentPackage));fs.copyFileSync(path.resolve(__dirname,'../package-lock.json'),path.join(root,'package-lock.json'));fs.writeFileSync(path.join(root,'runtime/settings.json'),'preserved settings');fs.writeFileSync(path.join(root,'runtime/deepseek-key.enc'),'encrypted fixture');
+const bundle=build(root);bundle.version='0.1.3';const item=bundle.files.find(f=>f.path==='package.json'),pkg=JSON.parse(Buffer.from(item.content,'base64'));pkg.version=bundle.version;const content=Buffer.from(JSON.stringify(pkg));Object.assign(item,{content:content.toString('base64'),size:content.length,sha256:hash(content)});
+const bytes=Buffer.from(JSON.stringify(bundle)),release={tag_name:'v0.1.3',assets:[{name:'token-glance-update.json',state:'uploaded',size:bytes.length,digest:'sha256:'+hash(bytes),browser_download_url:'https://github.com/bin19870223-netizen/token-glance/releases/download/v0.1.3/token-glance-update.json'}]};
+let win,fail=false,restarted=false;const errors=[];
+const state={settings:{...defaults,theme:'light'},dark:false,providers:{codex:{id:'codex',name:'Codex'}},sources:{},displays:[],appVersion:'0.1.2'};
+const updater=new AppUpdater(root,()=>{state.updates=updater.state;if(win&&!win.isDestroyed())win.webContents.send('state',state);},async url=>{if(fail)throw Error('test network failure');return url.startsWith('https://api.github.com/')?Buffer.from(JSON.stringify([release])):bytes;});state.updates=updater.state;
+ipcMain.handle('state',()=>state);ipcMain.handle('settings',(_,patch)=>{Object.assign(state.settings,patch);win.webContents.send('state',state);return state;});
+ipcMain.handle('action',async(_,name)=>{
+ if(name==='test-network-fail'){fail=true;return;}if(name==='test-network-ok'){fail=false;return;}
+ if(name==='update-check')await updater.check();if(name==='update-download')await updater.download();if(name==='update-install'){updater.apply();restarted=true;state.appVersion=new AppUpdater(root).current;}
+ return state;
+});
+app.whenReady().then(async()=>{try{
+ win=new BrowserWindow({width:890,height:900,show:false,webPreferences:{preload:path.resolve(__dirname,'../src/preload.cjs'),sandbox:true,contextIsolation:true,offscreen:true,backgroundThrottling:false}});win.webContents.on('console-message',(_,level,message)=>{if(level>=3)errors.push(message);});await win.loadFile(path.resolve(__dirname,'../src/ui/settings.html'));
+ const count=await win.webContents.executeJavaScript(`(async()=>{const tick=()=>new Promise(r=>setTimeout(r,150));let n=0;const check=(v,m)=>{if(!v)throw Error(m);n++;};await tick();document.querySelector('[data-page="about"]').click();check(!!document.getElementById('update-check'),'check button');check(document.querySelector('[data-toggle="autoUpdate"]').getAttribute('aria-checked')==='true','automatic check defaults on');document.querySelector('[data-toggle="autoUpdate"]').click();await tick();check((await window.hud.state()).settings.autoUpdate===false,'automatic check can be disabled');await window.hud.action('test-network-fail');document.getElementById('update-check').click();await tick();check(document.body.innerText.includes('检查更新失败'),'visible retryable error');await window.hud.action('test-network-ok');document.getElementById('update-check').click();await tick();check(!!document.getElementById('update-download'),'download offered for published update');document.getElementById('update-download').click();await tick();check(!!document.getElementById('update-install')&&document.body.innerText.includes('更新已就绪'),'validated update offers restart');document.getElementById('update-install').scrollIntoView({block:'center'});return n;})()`);
+ fs.writeFileSync(path.join(base,'updater-ready.png'),(await win.webContents.capturePage()).toPNG());
+ await win.webContents.executeJavaScript("document.getElementById('update-install').click()");await new Promise(r=>setTimeout(r,200));
+ if(!restarted||new AppUpdater(root).current!=='0.1.3')throw Error('install did not advance version');if(fs.readFileSync(path.join(root,'runtime/settings.json'),'utf8')!=='preserved settings'||fs.readFileSync(path.join(root,'runtime/deepseek-key.enc'),'utf8')!=='encrypted fixture')throw Error('private data changed');
+ if(errors.length)throw Error(errors.join(';'));console.log('PASS: '+(count+2)+' update UI/installation checks; real module, isolated release fixture, restart action intercepted');app.exit(0);
+}catch(e){console.error(e);app.exit(1);}});

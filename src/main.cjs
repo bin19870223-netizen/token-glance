@@ -6,6 +6,7 @@ const {spawn}=require('node:child_process');
 const {CodexClient}=require('./codex.cjs');
 const {TrafficMonitor}=require('./traffic.cjs');
 const {DeepSeekMonitor}=require('./deepseek.cjs');
+const {AppUpdater}=require('./updater.cjs');
 const {maintainTopmost}=require('./topmost.cjs');
 const {monitorFullscreen}=require('./fullscreen.cjs');
 const {defaults,sanitizeSettings,settingsPages,resetSettings,snapshot,sampleUsage,dockBounds,panelBounds}=require('./model.cjs');
@@ -34,6 +35,8 @@ let sources=readJSON(path.join(runtime,'sources.json'),{});
 const client=new CodexClient();
 const traffic=new TrafficMonitor(path.join(runtime,'traffic-subscription.enc'),safeStorage,undefined,path.join(runtime,'traffic-history.json'));
 const deepseek=new DeepSeekMonitor(path.join(runtime,'deepseek-key.enc'),safeStorage);
+const updater=new AppUpdater(root,()=>broadcast());
+let updateTimer,updateInitialTimer;
 let deepseekSaving=false;
 async function refreshDeepSeek(){const pending=deepseek.refresh();broadcast();await pending;broadcast();}
 let trafficTimer,trafficSaving=false;
@@ -55,7 +58,7 @@ function otherProvider(id){
   }catch{return {id,name:names[id],connected:false,stale:true,quotas:[],buckets:[],sessions:[],primary:null,lifetimeTokens:null};}
 }
 function allProviders(){return {codex:codex || {id:'codex',name:'Codex',connected:false,quotas:[],buckets:[],sessions:[],primary:null,lifetimeTokens:null},claude:otherProvider('claude'),deepseek:deepseek.configured()?deepseek.data:otherProvider('deepseek'),airport:traffic.data};}
-function state(){return {deepseek:{configured:deepseek.configured(),loading:deepseek.loading||deepseekSaving},traffic:{configured:traffic.configured(),loading:traffic.loading||trafficSaving},settings,providers:allProviders(),pinned,panelAgent,refreshing,connectionError,hotkeyError,dark:settings.theme==='dark'||settings.theme==='system'&&nativeTheme.shouldUseDarkColors,displays:screen.getAllDisplays().map(d=>({id:d.id,name:d.label || `显示器 ${d.id}`,primary:d.id===screen.getPrimaryDisplay().id})),sources:{claude:!!sources.claude,deepseek:!!sources.deepseek}};}
+function state(){return {appVersion:updater.current,updates:updater.state,deepseek:{configured:deepseek.configured(),loading:deepseek.loading||deepseekSaving},traffic:{configured:traffic.configured(),loading:traffic.loading||trafficSaving},settings,providers:allProviders(),pinned,panelAgent,refreshing,connectionError,hotkeyError,dark:settings.theme==='dark'||settings.theme==='system'&&nativeTheme.shouldUseDarkColors,displays:screen.getAllDisplays().map(d=>({id:d.id,name:d.label || `显示器 ${d.id}`,primary:d.id===screen.getPrimaryDisplay().id})),sources:{claude:!!sources.claude,deepseek:!!sources.deepseek}};}
 function broadcast(){const value=state();for(const w of [dock,panel,preferences])if(w&&!w.isDestroyed())w.webContents.send('state',value);updateTray();}
 function saveSettings(){fs.writeFileSync(settingsPath+'.tmp',JSON.stringify(settings,null,2));fs.renameSync(settingsPath+'.tmp',settingsPath);}
 function logStartup(event){
@@ -163,7 +166,7 @@ function updateTray(){
   tray.setToolTip(`Token Glance · ${codex?.connected?'Codex '+(remaining==null?'已连接':Math.round(remaining)+'% 剩余'):'等待连接'}`);
   tray.setContextMenu(Menu.buildFromTemplate([
     {label:'查看用量',click:()=>showPanel('codex',true)},
-    {label:'设置',click:showSettings},
+    {label:updater.state.status==='ready'?'设置（更新已就绪）':['available','manual'].includes(updater.state.status)?'设置（有新版本）':'设置',click:showSettings},
     {label:'刷新用量',click:refresh},
     {type:'separator'},
     {label:dock?.isVisible()?'隐藏贴边条':'显示贴边条',click:()=>dock?.isVisible()?dock.hide():dock.showInactive()},
@@ -198,6 +201,16 @@ ipcMain.handle('action',async(event,name,payload)=>{
   else if(name==='close-settings')preferences?.close();
   else if(name==='minimize')preferences?.minimize();
   else if(name==='refresh'){if(panelAgent==='deepseek'&&deepseek.configured())await refreshDeepSeek();else if(panelAgent==='airport')await refreshTraffic();else{refreshDeepSeek();refreshTraffic();await refresh();}}
+  else if(['update-check','update-download','update-install','update-release'].includes(name)){
+    if(event.sender!==preferences?.webContents)throw Error('Settings window required');
+    if(name==='update-check')await updater.check(false);
+    else if(name==='update-download')await updater.download();
+    else if(name==='update-release'&&updater.state.url)await shell.openExternal(updater.state.url);
+    else if(name==='update-install'){
+      try{updater.apply();app.relaunch({args:autoStarted?[root,'--background','--agent-auto']:[root]});app.quit();}
+      catch{updater.set('error','更新未完成，请重新检查更新或从发布页手动安装');}
+    }
+  }
   else if(name==='deepseek-connect'||name==='deepseek-clear'){
     if(event.sender!==preferences?.webContents)throw Error('Settings window required');
     if(deepseekSaving)return {ok:false,message:'连接正在验证，请稍候'};
@@ -269,6 +282,8 @@ else{
     topmostGuard=maintainTopmost(()=>[dock,panel],()=>settings.alwaysOnTop&&!fullscreenMonitor.shouldYield());
     saveSettings();applyStartup();createDock();applyHotkey();updateTray();refresh();
     refreshTraffic();refreshDeepSeek();trafficTimer=setInterval(()=>{refreshTraffic();refreshDeepSeek();},300000);trafficTimer.unref();
+    updateInitialTimer=setTimeout(()=>{if(settings.autoUpdate)updater.check(true);},20000);
+    updateTimer=setInterval(()=>{if(settings.autoUpdate)updater.check(true);},6*3600000);updateTimer.unref();
     nativeTheme.on('updated',broadcast);
     screen.on('display-metrics-changed',()=>{setBounds();broadcast();});
     screen.on('display-removed',()=>{setBounds();broadcast();});
@@ -277,4 +292,4 @@ else{
   }).catch(error=>{logStartup(`failed ${error.name}`);app.exit(1);});
 }
 app.on('window-all-closed',()=>{});
-app.on('before-quit',()=>{clearInterval(trafficTimer);topmostGuard?.stop();fullscreenMonitor?.stop();clearTimeout(refreshTimer);clearTimeout(hideTimer);clearTimeout(hoverTimer);globalShortcut.unregisterAll();client.stop();tray?.destroy();});
+app.on('before-quit',()=>{clearTimeout(updateInitialTimer);clearInterval(updateTimer);clearInterval(trafficTimer);topmostGuard?.stop();fullscreenMonitor?.stop();clearTimeout(refreshTimer);clearTimeout(hideTimer);clearTimeout(hoverTimer);globalShortcut.unregisterAll();client.stop();tray?.destroy();});

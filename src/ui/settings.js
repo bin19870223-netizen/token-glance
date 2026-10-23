@@ -74,10 +74,16 @@ async function connectTraffic(clear=false){
   finally{trafficBusy=false;render(current);}
 }
 function notifications(){return heading('低额度提醒')+card(toggle('alertEnabled','额度不足时提醒','达到阈值时发送一次安静的系统通知。')+range('alertThreshold','剩余额度阈值','仅在跨过阈值时提醒。',1,50,'%'))+heading('快捷键')+card(row('展开 / 收起 HUD','支持 Control、Shift、Alt 与按键组合。',`<input id="hotkey" type="text" data-setting="hotkey" value="${HUD.esc(current.settings.hotkey)}" aria-label="HUD 快捷键">`))+(current.hotkeyError?`<p class="error">${HUD.esc(current.hotkeyError)}</p>`:'')+heading('随手操作')+card(row('悬停圆环','临时展开用量面板。',HUD.icon('info'))+row('点击圆环','固定面板，再点一次收起。',HUD.icon('pin'))+row('右键贴边条','直接打开偏好设置。',HUD.icon('settings')))+`<p class="section-note">审批卡片与任务完成提醒尚未接入。本版本不会替你批准操作。</p>`;}
-function about(){return `<div class="about-logo"><div class="brand-mark">${HUD.icon('hud')}</div><div><h2>Token Glance</h2><p>Windows · v0.1.2</p></div></div>`+card(`<div class="about-text"><strong>让用量待在视线边缘。</strong><br>一个安静的 Windows 桌面用量助手。悬停查看，点击固定，拖动停靠。<br><br>交互参考 jazzenchen / agent-hud-open；设置布局参考 CyclicRedundancyCHK / session-model-usage。独立实现，非 OpenAI 官方产品。</div>`)+heading('数据与边界')+card(row('本地保存','设置、缓存和运行数据保存在应用目录下的 runtime 文件夹。','')+row('只读连接','调用 Codex 官方 app-server 的用量与会话列表接口。不会发起模型任务或消耗重置券。','')+row('当前支持','Codex 账号额度、按日 Token 活动、最近会话跳转。其他 Agent 支持本地快照。','')+row('尚未支持','实时审批、任务运行状态、逐会话 Token 分项。',''))+heading('运行')+card(row('结束运行','退出后会关闭贴边条、面板及其只读连接。',`<button class="button" id="quit-app">退出 Token Glance</button>`));}
+function updatesSettings(){
+  const u=current.updates||{status:'idle',message:'尚未检查更新'},busy=['checking','downloading','installed'].includes(u.status);
+  return heading('软件更新')+card(toggle('autoUpdate','自动检查并下载更新','启动后与运行期间定期检查；重启安装由你决定。')+row('当前版本','v'+(current.appVersion||'0.1.2')+(u.latest?' · 可用版本 v'+u.latest:''),'<button class="button" id="update-check" '+(busy?'disabled':'')+'>检查更新</button>')+row('更新状态',u.message,'<div class="row gap8">'+(u.status==='available'?'<button class="button" id="update-download">下载更新</button>':'')+(u.status==='ready'?'<button class="button" id="update-install">重启并更新</button>':'')+(u.url?'<button class="button" id="update-release">查看发布页</button>':'')+'</div>'))+'<p class="section-note">从本项目 GitHub Releases 下载兼容更新包，校验后保留旧程序备份。设置、用量记录及本机加密的密钥不会被替换。运行环境发生变化时需手动安装。</p>';
+}
+function about(){return `<div class="about-logo"><div class="brand-mark">${HUD.icon('hud')}</div><div><h2>Token Glance</h2><p>Windows · v${HUD.esc(current.appVersion||'0.1.2')}</p></div></div>`+card(`<div class="about-text"><strong>让用量待在视线边缘。</strong><br>一个安静的 Windows 桌面用量助手。悬停查看，点击固定，拖动停靠。<br><br>交互参考 jazzenchen / agent-hud-open；设置布局参考 CyclicRedundancyCHK / session-model-usage。独立实现，非 OpenAI 官方产品。</div>`)+updatesSettings()+heading('数据与边界')+card(row('本地保存','设置、缓存和运行数据保存在应用目录下的 runtime 文件夹。','')+row('只读连接','调用 Codex 官方 app-server 的用量与会话列表接口。不会发起模型任务或消耗重置券。','')+row('当前支持','Codex 账号额度、按日 Token 活动、最近会话跳转。其他 Agent 支持本地快照。','')+row('尚未支持','实时审批、任务运行状态、逐会话 Token 分项。',''))+heading('运行')+card(row('结束运行','退出后会关闭贴边条、面板及其只读连接。',`<button class="button" id="quit-app">退出 Token Glance</button>`));}
 const renderers={appearance,layout,display,startup,sources,notifications,about};
 function render(state){
   current=state;HUD.applyTheme(state);
+  const updateReady=current.updates?.status==='ready',updateAvailable=['available','manual'].includes(current.updates?.status);
+  document.querySelector('.version').textContent='v'+(current.appVersion||'0.1.2')+' · '+(updateReady?'更新已就绪':updateAvailable?'有新版本':'社区版本');
   $('sidebar-status').textContent=state.providers.codex.connected?'Codex 已连接':'Codex 等待连接';$('sidebar-dot').classList.toggle('offline',!state.providers.codex.connected);
   if(dragging||document.activeElement?.dataset.number||['traffic-link','deepseek-key'].includes(document.activeElement?.id))return;
   const focus=document.activeElement?.id;
@@ -103,6 +109,7 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#traffic-connect'))connectTraffic();
   if(e.target.closest('#traffic-clear'))connectTraffic(true);
   if(e.target.closest('#refresh-data'))window.hud.action('refresh');
+  const update=e.target.closest('[id^="update-"]');if(update&&['update-check','update-download','update-install','update-release'].includes(update.id))window.hud.action(update.id).catch(()=>{});
   if(e.target.closest('#quit-app'))window.hud.action('quit');
 });
 document.addEventListener('pointerdown',e=>{if(e.target.matches('input[type=range]'))dragging=true;});

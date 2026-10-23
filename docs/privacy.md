@@ -12,6 +12,8 @@
 
 启用 DeepSeek 官方余额后：本工具仅向 `https://api.deepseek.com/user/balance` 发送 GET 请求，每 5 分钟刷新；API Key 仅通过 Authorization 请求头发送给该固定端点。不跟随重定向，不发起模型请求；接口仅返回金额，不提供 Token 消耗明细。
 
+自动更新默认开启：启动约 20 秒后及运行期间每 6 小时向 GitHub 公共 Releases API 查询本仓库发布版本（含实验性预发布），有兼容更新时下载本仓库附件。请求不发送登录状态或 API Key。下载须匹配 GitHub 附件 SHA-256、文件校验及运行环境指纹；只有用户点击“重启并更新”才替换程序。不同 Electron / 依赖锁文件 / 本机辅助程序版本提示手动升级。
+
 ## 持久化
 
 | 位置 | 内容 | 是否应公开 |
@@ -22,6 +24,7 @@
 | `runtime/deepseek-key.enc` | 用户手动填写的 DeepSeek API Key，通过 Windows 本机加密保存，不回传 UI 状态、不记录日志 | 否 |
 | `runtime/traffic-history.json` | 最近 24 小时流量采样区间、上传与下载增量，不含订阅链接；用于 6 / 12 / 24 小时统计 | 否 |
 | `runtime/traffic-subscription.enc` | 用户手动填写的白月光订阅链接，通过 Electron safeStorage / Windows 本机加密保存 | 否 |
+| `runtime/updates/` | 校验后的程序更新暂存与旧程序备份，不含设置、用量或 API Key | 否 |
 | `runtime/user-data/`、缓存/日志/崩溃目录 | Electron 本地运行信息 | 否 |
 | 内存 | 最近会话标题和 ID | 不持久化到用量缓存 |
 
