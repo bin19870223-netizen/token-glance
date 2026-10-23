@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {createRequire} from 'node:module';
 const require=createRequire(import.meta.url);
-const {AppUpdater,hash,newer,updatePath,validateBundle}=require('../src/updater.cjs');
+const {AppUpdater,hash,newer,updatePath,validateBundle,compatibility}=require('../src/updater.cjs');
 const {build}=require('../scripts/build-update.cjs');
 const base=path.resolve('work/update-tests');fs.mkdirSync(base,{recursive:true});
 const repo='https://github.com/bin19870223-netizen/token-glance/releases/';
@@ -20,6 +20,12 @@ function fixture(){
 test('update versions compare numerically and protected paths are never allowed',()=>{
  assert.equal(newer('0.1.10','0.1.9'),true);assert.equal(newer('0.1.2','0.1.2'),false);assert.throws(()=>newer('v1.0.0','0.1.2'));
  for(const p of ['runtime/settings.json','src/../runtime/key.enc','src/ui/../../main.cjs','src\\main.cjs','C:/evil.js','.git/config','node_modules/electron/a.js'])assert.equal(updatePath(p),false);
+});
+test('app version bumps preserve compatibility while dependency changes still require manual installation',()=>{
+ const f=fixture(),file=path.join(f.root,'package-lock.json');
+ fs.writeFileSync(file,JSON.stringify({version:'0.1.2',packages:{'':{version:'0.1.2',devDependencies:{electron:'44.7.1'}}}}));const before=compatibility(f.root);
+ fs.writeFileSync(file,JSON.stringify({version:'0.1.3',packages:{'':{version:'0.1.3',devDependencies:{electron:'44.7.1'}}}}));assert.deepEqual(compatibility(f.root),before);
+ fs.writeFileSync(file,JSON.stringify({version:'0.1.3',packages:{'':{version:'0.1.3',devDependencies:{electron:'44.8.0'}}}}));assert.notEqual(compatibility(f.root).lock,before.lock);
 });
 test('published preview check, digest verification, stage and apply preserve runtime and backup the old app',async()=>{
  const f=fixture(),u=new AppUpdater(f.root,()=>{},f.fetch);await u.check(true);assert.equal(u.state.status,'ready');

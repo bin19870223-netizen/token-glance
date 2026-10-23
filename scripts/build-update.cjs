@@ -5,7 +5,7 @@ function build(root){
   function add(relative){
     const file=path.join(root,relative),stat=fs.lstatSync(file);if(stat.isSymbolicLink())throw Error('Update files cannot be links');
     if(stat.isDirectory()){for(const name of fs.readdirSync(file).sort())add(relative+'/'+name);return;}
-    const data=fs.readFileSync(file);files.push({path:relative,size:data.length,sha256:hash(data),content:data.toString('base64')});
+    const data=relative.endsWith('.png')?fs.readFileSync(file):Buffer.from(fs.readFileSync(file,'utf8').replace(/\r\n/g,'\n'));files.push({path:relative,size:data.length,sha256:hash(data),content:data.toString('base64')});
   }
   add('src');add('package.json');
   const bundle={format:1,version:pkg.version,compatibility:compatibility(root),files};validateBundle(bundle,pkg.version,root);return bundle;

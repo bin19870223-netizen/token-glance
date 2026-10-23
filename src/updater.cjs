@@ -25,7 +25,10 @@ function get(url,max=limit,redirects=0){
 function compatibility(root){
   const pkg=JSON.parse(fs.readFileSync(path.join(root,'package.json'),'utf8'));
   const textHash=file=>hash(fs.readFileSync(file,'utf8').replace(/\r\n/g,'\n'));
-  return {electron:pkg.devDependencies.electron,lock:textHash(path.join(root,'package-lock.json')),native:Object.fromEntries(['AgentUsageWatcher.cs','FullscreenState.cs'].map(f=>[f,textHash(path.join(root,'src',f))]))};
+  const lock=JSON.parse(fs.readFileSync(path.join(root,'package-lock.json'),'utf8'));
+  // Application version metadata does not change the installed dependency tree.
+  delete lock.version;if(lock.packages?.[''])delete lock.packages[''].version;
+  return {electron:pkg.devDependencies.electron,lock:hash(JSON.stringify(lock)),native:Object.fromEntries(['AgentUsageWatcher.cs','FullscreenState.cs'].map(f=>[f,textHash(path.join(root,'src',f))]))};
 }
 function validateBundle(raw,expected,root){
   if(raw?.format!==1||raw.version!==expected||!Array.isArray(raw.files)||raw.files.length<2||raw.files.length>500)throw Error('更新包格式无效');version(raw.version);

@@ -6,9 +6,9 @@
 
 A small ring stays docked to the edge. Hover to see quota and Token activity, or click to pin the panel while you work.
 
-Windows 10 / 11 · MIT · **v0.1.2 experimental source preview**
+Windows 10 / 11 · MIT · **v0.1.3 experimental source preview**
 
-[Get the source](https://github.com/bin19870223-netizen/token-glance/releases/tag/v0.1.2) · [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/bin19870223-netizen/token-glance/issues)
+[Get the source](https://github.com/bin19870223-netizen/token-glance/releases/tag/v0.1.3) · [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/bin19870223-netizen/token-glance/issues)
 
 ![Edge dock and usage panels in light and dark themes](docs/images/overview.png)
 
@@ -50,9 +50,19 @@ Baiyueguang subscription traffic is available under Settings → Data sources. E
 | Source | Current support | Limitations |
 | --- | --- | --- |
 | Codex | Quotas, Tokens, and recent conversations returned by the local official app-server | Experimental API; fields and availability may change |
-| Claude / DeepSeek | A local JSON usage snapshot selected by the user | No live account integration or hourly details yet |
+| DeepSeek | Official API available, topped-up and granted balances; local snapshot adapter retained | The balance API has no token usage breakdown |
+| Baiyueguang traffic | Remaining/used allowance, expiry and 6/12/24-hour sampled charts | History accumulates locally; usage before sampling cannot be reconstructed |
+| Claude | User-selected local JSON snapshots | No live account integration |
 
 Unavailable readings appear as “—”. Tokens and subscription quotas are separate measures and are not converted into each other. Daily data may be delayed. Live approvals, task execution status, and per-conversation Token breakdowns are not implemented.
+
+## New traffic and update interfaces
+
+| Hourly subscription traffic | In-app update flow |
+| --- | --- |
+| ![6/12/24-hour sampled traffic](docs/images/traffic-activity.png) | ![Check, download and restart controls](docs/images/software-update.png) |
+
+These screenshots use isolated test data. The candidate version in the update screenshot illustrates the workflow only.
 
 ## Run from source
 
@@ -66,7 +76,7 @@ npm start
 
 The build creates both the Agent startup watcher and the fullscreen / occlusion detector. After installation and building, you can also double-click `START.vbs` for a quiet launch.
 
-**This release contains source code, not a signed installer, portable executable, or automatic updater.** Install and sign in to Codex separately. The app checks the local installation and `codex.exe` on PATH. A custom path can be supplied using the retained compatibility variable:
+**This release contains source code and an in-app update bundle, not a signed installer or portable executable. Install the runtime as described above for first use; subsequent compatible releases can be installed under About → Software updates.** Install and sign in to Codex separately. The app checks the local installation and `codex.exe` on PATH. A custom path can be supplied using the retained compatibility variable:
 
 ```powershell
 $env:AGENT_HUD_CODEX = 'D:\Tools\codex.exe'
@@ -77,7 +87,7 @@ Closing settings does not quit the app. Use the tray menu or “About → Quit T
 
 ## Privacy and project scope
 
-Preferences, aggregate usage, numeric samples, an account identifier digest, and caches stay in the local `runtime/` directory and are excluded from public source exports. The app does not directly read or store passwords, cookies, or API keys, and has no telemetry server. It uses the official Codex app-server's existing sign-in and allows only read-only methods.
+Preferences, aggregate usage, numeric samples, an account identifier digest, and caches stay in the local `runtime/` directory and are excluded from public source exports. The app does not import browser cookies, passwords or other applications' API keys and has no telemetry server. Manually entered DeepSeek API keys and subscription URLs are encrypted locally by Windows and excluded from logs and public source. It uses the official Codex app-server's existing sign-in and allows only read-only methods.
 
 This is an independent community project, not an official release from OpenAI, Anthropic, DeepSeek, or the reference projects. It does not start model tasks, approve actions, or redeem usage resets.
 

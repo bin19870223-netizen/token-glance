@@ -1,20 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.1.3 — Experimental preview (2026-10-23)
 
-- 增加应用内自动检查、下载与重启更新入口，校验发布附件及运行环境，保留用户数据并备份旧程序。
-- 增加生成更新包与 GitHub Release 附件发布工作流。
-
-- 修复 Codex 累计值首次从零加载时被误算为 24 小时新增用量；保留有效采样并跳过零值恢复区间。
-
-- 机场流量活动采用与 Token 活动一致的按小时柱状图，支持 6 / 12 / 24 小时切换。
-
-- 机场流量增加最近 6 / 12 / 24 小时用量与实际采样覆盖时长，本地保留最近 24 小时增量。
-
-- 接入 DeepSeek 官方 API 余额：本机加密保存密钥，贴边条显示金额，面板显示充值与赠送余额。
-
-- Add optional Baiyueguang subscription traffic to the existing dock, detail panel and data-source settings, using HTTPS subscription response headers and Windows-encrypted local configuration.
-- Separate warning text and ring/bar colors in light and dark themes for better legibility on translucent surfaces.
+- Add in-app automatic update checks and compatible bundle downloads from this repository, with user-controlled restart, SHA-256 verification, old-program backup and failure rollback. Preserve runtime settings, usage records and encrypted credentials.
+- Add a release workflow that tests and publishes the automatic-update asset. Version-only lockfile changes no longer force a manual runtime upgrade; dependency or native-helper changes still do.
+- Add Baiyueguang subscription traffic using HTTPS response headers and Windows-encrypted local configuration, including independent subscription domains.
+- Add local 6 / 12 / 24-hour traffic sampling and switchable hourly bar charts. Unknown, offline and pre-sampling periods are not fabricated.
+- Add DeepSeek official API balance monitoring, showing available, topped-up and granted balances with encrypted local API-key storage. The official balance endpoint does not supply token history.
+- Measure dock content width so monetary balances and the final percentage remain visible at larger font sizes.
+- Exclude uninitialized zero-to-lifetime jumps from Codex 24-hour sampled usage, including previously cached bad intervals. Explain delayed cumulative reporting.
+- Improve low-quota warning text contrast while keeping ring/bar fills subdued.
 
 ## 0.1.2 — Experimental source preview
 
@@ -47,4 +42,4 @@
 - Larger settings typography.
 - Portable watcher build, isolated tests, Windows CI configuration, license/attributions and private-state exclusions.
 
-This is an experimental source preview. It does not include a signed installer or automatic updater.
+This is an experimental source preview. It does not include a signed installer. In-app compatible source updates are supported starting with 0.1.3.
