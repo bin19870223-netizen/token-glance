@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-let current,page='appearance',dragging=false,saveTimer;
+let current,page='appearance',dragging=false,saveTimer,trafficBusy=false,trafficMessage='';
 const pages={appearance:['外观','安静一点，也可以很漂亮。','appearance'],layout:['屏幕与布局','贴着屏幕边缘，留出你的工作空间。','layout'],display:['显示内容','只留下你想一眼看到的信息。','activity'],startup:['启动与运行','和你的 Agent 一起出现，用完就轻轻退场。','power'],sources:['数据源','真实用量，清楚知道它从哪里来。','agents'],notifications:['提醒与快捷键','需要的时候出现，其余时间保持安静。','bell'],about:['关于','Your agents, at a glance.','info']};
 $('brand').innerHTML=HUD.icon('hud');$('minimize').innerHTML=HUD.icon('minimize');$('close').innerHTML=HUD.icon('close');
 $('navigation').innerHTML=Object.entries(pages).map(([id,[label,,ico]])=>`<button data-page="${id}" class="${id===page?'active':''}">${HUD.icon(ico)}<span>${label}</span></button>`).join('');
@@ -43,9 +43,22 @@ function startup(){
     `<p class="section-note">填写 exe 文件名，多个名称用逗号分隔；不要填写路径或命令。Codex 会区分官方桌面应用与本工具自己的只读连接。Claude Code 的 Node 版按专用命令路径识别。这里的进程识别只控制启动，不会改变数据源的连接能力。</p>`;
 }
 function sources(){
-  const providerRows=Object.entries(current.providers).map(([id,p])=>`<div class="setting source-row"><div class="source-text"><img src="assets/${id==='codex'?'chatgpt':id}.png" class="agent-logo ${id}" alt=""><div><div class="setting-label">${p.name} <span class="badge">${HUD.statusLabel(p)}</span></div><div class="setting-description">${id==='codex'?'本机 Codex 只读接口 · 额度、Token、会话':current.sources[id]?'本地 JSON 快照 · 5 分钟后标为旧数据':'本地 JSON 快照 · 尚未配置'}</div></div></div><div class="control">${id!=='codex'?`<button class="button" data-source="${id}">选择文件</button>`:''}<button role="switch" class="switch ${current.settings.agents.includes(id)?'on':''}" aria-checked="${current.settings.agents.includes(id)}" aria-label="显示 ${p.name}" data-agent="${id}"></button></div></div>`).join('');
-  return heading('监视的 Agent')+card(providerRows)+heading('同步')+card(select('refreshSeconds','自动刷新','只读取用量，不触发模型请求。',[[30,'每 30 秒'],[60,'每分钟'],[120,'每 2 分钟'],[300,'每 5 分钟'],[600,'每 10 分钟']])+row('立即同步',current.connectionError||'使用 Codex 当前登录的账号。',`<button class="button" id="refresh-data" ${current.refreshing?'disabled':''}>${current.refreshing?'同步中…':'刷新用量'}</button>`))+
+  const providerRows=Object.entries(current.providers).filter(([id])=>id!=='airport').map(([id,p])=>`<div class="setting source-row"><div class="source-text"><img src="${HUD.logo(id)}" class="agent-logo ${id}" alt=""><div><div class="setting-label">${p.name} <span class="badge">${HUD.statusLabel(p)}</span></div><div class="setting-description">${id==='codex'?'本机 Codex 只读接口 · 额度、Token、会话':current.sources[id]?'本地 JSON 快照 · 5 分钟后标为旧数据':'本地 JSON 快照 · 尚未配置'}</div></div></div><div class="control">${id!=='codex'?`<button class="button" data-source="${id}">选择文件</button>`:''}<button role="switch" class="switch ${current.settings.agents.includes(id)?'on':''}" aria-checked="${current.settings.agents.includes(id)}" aria-label="显示 ${p.name}" data-agent="${id}"></button></div></div>`).join('');
+  return heading('监视的 Agent')+card(providerRows)+trafficSettings()+heading('同步')+card(select('refreshSeconds','自动刷新','只读取用量，不触发模型请求。',[[30,'每 30 秒'],[60,'每分钟'],[120,'每 2 分钟'],[300,'每 5 分钟'],[600,'每 10 分钟']])+row('立即同步',current.connectionError||'使用 Codex 当前登录的账号。',`<button class="button" id="refresh-data" ${current.refreshing?'disabled':''}>${current.refreshing?'同步中…':'刷新用量'}</button>`))+
   `<p class="section-note">Claude 与 DeepSeek 当前使用文件适配器，尚未接入各自账号的实时接口。JSON 可提供 primary / secondary（usedPercent、windowDurationMins、resetsAt）、lifetimeTokens 和 dailyUsageBuckets。不会读取浏览器 Cookie、密码或 API Key。</p>`;
+}
+function trafficSettings(){
+  const configured=!!current.traffic?.configured;
+  return heading('机场流量 · 白月光')+card(toggle('showTraffic','在贴边条显示流量','独立于 Agent 监控列表，悬停查看流量明细。')+'<div class="traffic-connection"><label for="traffic-link" class="setting-label">原始订阅链接</label><input id="traffic-link" type="password" autocomplete="off" spellcheck="false" aria-label="白月光订阅链接" placeholder="'+(configured?'已加密保存；填写新链接可替换':'粘贴 asiassn.com 的 HTTPS 订阅链接')+'"><div class="row gap8"><button class="button" id="traffic-connect" '+(trafficBusy?'disabled':'')+'>'+(trafficBusy?'正在验证…':'保存并连接')+'</button>'+(configured?'<button class="button" id="traffic-clear" '+(trafficBusy?'disabled':'')+'>移除连接</button>':'')+'</div><p id="traffic-message" class="setting-description" role="status">'+HUD.esc(trafficMessage||current.providers.airport?.error||(configured?'已保存订阅，流量每 5 分钟更新。':'链接仅在本机 Windows 加密保存，不会显示或写入日志。'))+'</p></div>');
+}
+async function connectTraffic(clear=false){
+  if(trafficBusy)return;
+  const input=$('traffic-link'),value=clear?'':input.value;
+  if(!clear&&!value.trim()){trafficMessage='请先填写原始订阅链接';render(current);return;}
+  trafficBusy=true;trafficMessage='';input.value='';input.blur();render(current);
+  try{const result=await window.hud.action(clear?'traffic-clear':'traffic-connect',value);trafficMessage=result.ok?(clear?'已移除本机订阅链接':'连接成功，已在贴边条显示流量'):result.message;current=await window.hud.state();}
+  catch{trafficMessage='连接失败，请检查链接或网络后重试';}
+  finally{trafficBusy=false;render(current);}
 }
 function notifications(){return heading('低额度提醒')+card(toggle('alertEnabled','额度不足时提醒','达到阈值时发送一次安静的系统通知。')+range('alertThreshold','剩余额度阈值','仅在跨过阈值时提醒。',1,50,'%'))+heading('快捷键')+card(row('展开 / 收起 HUD','支持 Control、Shift、Alt 与按键组合。',`<input id="hotkey" type="text" data-setting="hotkey" value="${HUD.esc(current.settings.hotkey)}" aria-label="HUD 快捷键">`))+(current.hotkeyError?`<p class="error">${HUD.esc(current.hotkeyError)}</p>`:'')+heading('随手操作')+card(row('悬停圆环','临时展开用量面板。',HUD.icon('info'))+row('点击圆环','固定面板，再点一次收起。',HUD.icon('pin'))+row('右键贴边条','直接打开偏好设置。',HUD.icon('settings')))+`<p class="section-note">审批卡片与任务完成提醒尚未接入。本版本不会替你批准操作。</p>`;}
 function about(){return `<div class="about-logo"><div class="brand-mark">${HUD.icon('hud')}</div><div><h2>Token Glance</h2><p>Windows · v0.1.2</p></div></div>`+card(`<div class="about-text"><strong>让用量待在视线边缘。</strong><br>一个安静的 Windows 桌面用量助手。悬停查看，点击固定，拖动停靠。<br><br>交互参考 jazzenchen / agent-hud-open；设置布局参考 CyclicRedundancyCHK / session-model-usage。独立实现，非 OpenAI 官方产品。</div>`)+heading('数据与边界')+card(row('本地保存','设置、缓存和运行数据保存在应用目录下的 runtime 文件夹。','')+row('只读连接','调用 Codex 官方 app-server 的用量与会话列表接口。不会发起模型任务或消耗重置券。','')+row('当前支持','Codex 账号额度、按日 Token 活动、最近会话跳转。其他 Agent 支持本地快照。','')+row('尚未支持','实时审批、任务运行状态、逐会话 Token 分项。',''))+heading('运行')+card(row('结束运行','退出后会关闭贴边条、面板及其只读连接。',`<button class="button" id="quit-app">退出 Token Glance</button>`));}
@@ -53,7 +66,7 @@ const renderers={appearance,layout,display,startup,sources,notifications,about};
 function render(state){
   current=state;HUD.applyTheme(state);
   $('sidebar-status').textContent=state.providers.codex.connected?'Codex 已连接':'Codex 等待连接';$('sidebar-dot').classList.toggle('offline',!state.providers.codex.connected);
-  if(dragging||document.activeElement?.dataset.number)return;
+  if(dragging||document.activeElement?.dataset.number||document.activeElement?.id==='traffic-link')return;
   const focus=document.activeElement?.id;
   $('page-title').textContent=pages[page][0];$('page-subtitle').textContent=pages[page][1];
   $('page').innerHTML=renderers[page]();
@@ -72,6 +85,8 @@ document.addEventListener('click',e=>{
   const c=e.target.closest('[data-key]');if(c)patch({[c.dataset.key]:c.dataset.value});
   const a=e.target.closest('[data-agent]');if(a){let agents=current.settings.agents.filter(id=>id!==a.dataset.agent);if(!current.settings.agents.includes(a.dataset.agent))agents.push(a.dataset.agent);patch({agents});}
   const f=e.target.closest('[data-source]');if(f)window.hud.action('pick-source',f.dataset.source);
+  if(e.target.closest('#traffic-connect'))connectTraffic();
+  if(e.target.closest('#traffic-clear'))connectTraffic(true);
   if(e.target.closest('#refresh-data'))window.hud.action('refresh');
   if(e.target.closest('#quit-app'))window.hud.action('quit');
 });
@@ -99,6 +114,7 @@ $('reset-settings').onclick=async()=>{
   finally{button.disabled=false;}
 };
 document.addEventListener('keydown',e=>{
+  if(e.target.id==='traffic-link'&&e.key==='Enter'){e.preventDefault();connectTraffic();return;}
   const key=e.target.dataset.number;
   if(key&&e.key==='Enter'){
     e.preventDefault();const value=rangeValue($(key),e.target.value);

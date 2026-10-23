@@ -4,6 +4,8 @@
 
 本工具 → 本机官方 `codex.exe app-server --listen stdio://` → Codex 自己的账号服务。
 
+启用白月光流量后：本工具 → 用户手动填写的 `asiassn.com` HTTPS 订阅地址，每 5 分钟读取 `Subscription-Userinfo` 响应头。使用 Clash 兼容 User-Agent，不读取或保存订阅正文中的节点配置，不导入浏览器 Cookie，不自动登录网站；拒绝跨站跳转。
+
 工具允许 `initialize`、`account/read`、`account/rateLimits/read`、`account/usage/read`、`thread/list`，以及协议初始化通知；没有发起模型任务或审批请求的接口。实验能力通过初始化显式启用。`account/read` 不请求刷新凭据；本工具不解析 Codex 凭据文件。
 
 账号服务是否联网、如何保存登录、是否自行更新凭据由 Codex 控制。本工具不保证其子进程完全不产生网络流量或第三方运行日志。
@@ -15,10 +17,13 @@
 | `runtime/settings.json` | 偏好、监控进程名称、显示器 ID | 否 |
 | `runtime/usage.json` | 聚合额度、按日用量、计划类型、最近约 25 小时的累计 Token 数字采样及账号标识摘要 | 否 |
 | `runtime/sources.json` | 用户选择的 JSON 文件路径 | 否 |
+| `runtime/traffic-subscription.enc` | 用户手动填写的白月光订阅链接，通过 Electron safeStorage / Windows 本机加密保存 | 否 |
 | `runtime/user-data/`、缓存/日志/崩溃目录 | Electron 本地运行信息 | 否 |
 | 内存 | 最近会话标题和 ID | 不持久化到用量缓存 |
 
 用量 JSON 并不是密码，但仍是个人活动信息。即使没有 API Key，也不应把运行目录推到 GitHub。
+
+订阅链接含访问凭据，不通过 IPC 状态回传，也不回填到设置输入框。Windows 加密不可用时拒绝保存，不回退明文；“移除连接”会删除本机保存的加密链接。流量读数只保留在内存中。
 
 24 小时图仅使用工具运行期间对账号累计 Token 的采样增量，按采样时刻分入小时段。账号标识摘要由接口返回的邮箱计算，用于切换账号时清空旧采样；不将邮箱原文写入用量缓存。它仍是私有活动信息，不应公开。工具未运行、连接中断或缺少有效账号信息的时段不会补造用量；7 / 30 天继续使用接口的按日汇总。
 

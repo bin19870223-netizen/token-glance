@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Add optional Baiyueguang subscription traffic to the existing dock, detail panel and data-source settings, using HTTPS subscription response headers and Windows-encrypted local configuration.
+- Separate warning text and ring/bar colors in light and dark themes for better legibility on translucent surfaces.
+
 ## 0.1.2 — Experimental source preview
 
 - Keep the Agent watcher independent of the launching host's Windows Job Object, so closing Codex does not also remove the watcher needed for its next launch.

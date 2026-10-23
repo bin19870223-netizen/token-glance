@@ -18,6 +18,9 @@ const icons={
   clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   power:'<path d="M12 2v10M6 5a9 9 0 1 0 12 0"/>'
 };
+function logo(id){return id==='airport'?'assets/airport.svg':`assets/${id==='codex'?'chatgpt':id}.png`;}
+function providerIds(settings){return [...settings.agents,...settings.showTraffic?['airport']:[]];}
+function bytes(value){if(value==null)return '—';const units=['B','KiB','MiB','GiB','TiB'];let i=0;while(value>=1024&&i<units.length-1){value/=1024;i++;}return value.toLocaleString('zh-CN',{maximumFractionDigits:i?2:0})+' '+units[i];}
 function icon(name){return `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[name]||icons.hud}</svg>`;}
 function esc(value){return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function number(value){if(!Number.isFinite(value))return '—';return new Intl.NumberFormat('en',{notation:'compact',maximumFractionDigits:1}).format(value);}
@@ -31,10 +34,10 @@ function applyTheme(state){
   style.setProperty('--accent',accent);style.setProperty('--accent-rgb',rgb);style.setProperty('--opacity',s.glass?s.opacity/100:1);style.setProperty('--scale',s.fontScale/100);style.setProperty('--ring-size',s.ringSize+'px');
   style.setProperty('--accent-ink',state.dark?'#0a2920':'#ffffff');
 }
-function color(remaining){return remaining==null?'var(--subtle)':remaining<=10?'#f28e8e':remaining<=30?'#e8c16c':'var(--accent)';}
-function ring(provider,settings){const remaining=provider.primary?.remaining;return `<span class="ring ${remaining==null?'unknown':''} ${settings.showRing?'':'hide-ring'}" style="--ring-offset:${remaining==null?100:100-remaining};--ring-color:${color(remaining)}"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="17" pathLength="100"/><circle class="fill" cx="20" cy="20" r="17" pathLength="100"/></svg><img class="agent-logo ${provider.id}" src="assets/${provider.id==='codex'?'chatgpt':provider.id}.png" alt=""></span>`;}
+function color(remaining,forText=false){return remaining==null?'var(--subtle)':remaining<=10?'#f28e8e':remaining<=30?(forText?'var(--warning-text)':'var(--warning)'):'var(--accent)';}
+function ring(provider,settings){const remaining=provider.primary?.remaining;return `<span class="ring ${remaining==null?'unknown':''} ${settings.showRing?'':'hide-ring'}" style="--ring-offset:${remaining==null?100:100-remaining};--ring-color:${color(remaining)}"><svg viewBox="0 0 40 40"><circle class="track" cx="20" cy="20" r="17" pathLength="100"/><circle class="fill" cx="20" cy="20" r="17" pathLength="100"/></svg><img class="agent-logo ${provider.id}" src="${logo(provider.id)}" alt=""></span>`;}
 function countdown(timestamp){if(!Number.isFinite(timestamp))return '重置时间未知';const mins=Math.max(0,Math.ceil((timestamp*1000-Date.now())/60000));if(!mins)return '等待额度更新';if(mins>=1440)return `${Math.floor(mins/1440)} 天 ${Math.floor(mins%1440/60)} 小时后重置`;return `${Math.floor(mins/60)} 小时 ${mins%60} 分后重置`;}
-function quotas(provider,settings,used=false){const rows=provider.quotas.filter(q=>settings.showShort||q.minutes>300);return rows.map(q=>`<div class="quota-row"><div class="between"><span class="quota-label">${esc(q.label)}</span><span class="quota-value mono" style="--quota-color:${color(q.remaining)}">${Math.round(used?q.used:q.remaining)}<small>%</small></span></div><div class="quota-track"><div class="quota-fill" style="--fill:${used?q.used:q.remaining}%;--quota-color:${color(q.remaining)}"></div></div><div class="between quota-sub"><span>${used?'已使用':'剩余额度'}</span><span>${countdown(q.resetsAt)}</span></div></div>`).join('');}
+function quotas(provider,settings,used=false){const rows=provider.quotas.filter(q=>settings.showShort||q.minutes>300);return rows.map(q=>`<div class="quota-row"><div class="between"><span class="quota-label">${esc(q.label)}</span><span class="quota-value mono" style="--quota-color:${color(q.remaining,true)}">${Math.round(used?q.used:q.remaining)}<small>%</small></span></div><div class="quota-track"><div class="quota-fill" style="--fill:${used?q.used:q.remaining}%;--quota-color:${color(q.remaining)}"></div></div><div class="between quota-sub"><span>${used?'已使用':'剩余额度'}</span><span>${countdown(q.resetsAt)}</span></div></div>`).join('');}
 function chartData(provider,days,now=Date.now()){
   if(days===1){
     const start=now-24*3600000;
@@ -62,4 +65,4 @@ function chartHTML(data){
   return `<div class="chart">${data.slots.map(b=>`<div class="bar ${b.tokens==null?'missing':''}" title="${esc(data.hourly?time(b.at):b.date)} · ${b.tokens==null?'无数据':new Intl.NumberFormat('zh-CN').format(b.tokens)+' tokens'}" style="--height:${b.tokens==null?2:Math.max(2,b.tokens/max*100)}%"></div>`).join('')}</div><div class="between chart-labels"><span>${data.hourly?time(data.start):data.start.slice(5).replace('-',' / ')}</span><span>${data.hourly?'最近 24 小时':`截至 ${data.end.slice(5).replace('-',' / ')} · 按日`}</span></div>`;
 }
 function statusLabel(p){return p.stale?'上次记录':p.connected?(p.source==='file'?'文件快照':'已连接'):'未连接';}
-window.HUD={icon,esc,number,applyTheme,color,ring,countdown,quotas,chartData,chartHTML,statusLabel};
+window.HUD={logo,providerIds,bytes,icon,esc,number,applyTheme,color,ring,countdown,quotas,chartData,chartHTML,statusLabel};

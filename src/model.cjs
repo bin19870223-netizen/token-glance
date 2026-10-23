@@ -5,14 +5,14 @@ const defaults = Object.freeze({
   alwaysOnTop:true, reducedMotion:false, refreshSeconds:60, alertEnabled:false,
   alertThreshold:15, startupMode:'manual', launchAtLogin:false, hotkey:'Control+Shift+Space',
   watchProcesses:{codex:'ChatGPT.exe, codex.exe',claude:'claude.exe',deepseek:'DeepSeek.exe'},
-  agents:['codex'], chartDays:7
+  agents:['codex'], chartDays:7, showTraffic:false
 });
 const settingsPages={
   appearance:{label:'外观',keys:['theme','palette','customColor','opacity','fontScale','glass','reducedMotion']},
   layout:{label:'屏幕与布局',keys:['edge','position','displayId','edgeGap','ringSize','hoverDelay','alwaysOnTop']},
   display:{label:'显示内容',keys:['showRing','showNumbers','showShort','chartDays']},
   startup:{label:'启动与运行',keys:['startupMode','launchAtLogin','watchProcesses']},
-  sources:{label:'数据源',keys:['agents','refreshSeconds']},
+  sources:{label:'数据源',keys:['agents','refreshSeconds','showTraffic']},
   notifications:{label:'提醒与快捷键',keys:['alertEnabled','alertThreshold','hotkey']},
   about:{label:'关于',keys:[]}
 };
@@ -31,7 +31,7 @@ function sanitizeSettings(input = {}) {
   for(const [key,min,max] of [['position',0,1],['edgeGap',0,32],['ringSize',24,44],['fontScale',85,125],['opacity',65,100],['hoverDelay',100,1000],['refreshSeconds',30,600],['alertThreshold',1,50]]) {
     if(Number.isFinite(input[key])) s[key]=Math.max(min,Math.min(max,input[key]));
   }
-  for(const key of ['showNumbers','showRing','showShort','glass','alwaysOnTop','reducedMotion','alertEnabled','launchAtLogin']) if(typeof input[key]==='boolean') s[key]=input[key];
+  for(const key of ['showNumbers','showRing','showShort','glass','alwaysOnTop','reducedMotion','alertEnabled','launchAtLogin','showTraffic']) if(typeof input[key]==='boolean') s[key]=input[key];
   s.startupMode=['manual','system','agents'].includes(input.startupMode)?input.startupMode:input.launchAtLogin?'system':'manual';
   s.launchAtLogin=s.startupMode!=='manual';
   s.watchProcesses={...defaults.watchProcesses};

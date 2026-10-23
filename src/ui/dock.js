@@ -2,13 +2,13 @@ let current;
 const contents=new WeakMap();
 function render(state){
   current=state;HUD.applyTheme(state);document.body.classList.toggle('horizontal',!['left','right'].includes(state.settings.edge));
-  const keys=state.settings.agents.join(',');
-  if(agents.dataset.keys!==keys){agents.innerHTML=state.settings.agents.map(id=>`<button class="agent" data-agent="${id}"></button>`).join('');agents.dataset.keys=keys;}
-  for(const id of state.settings.agents){
+  const ids=HUD.providerIds(state.settings),keys=ids.join(',');
+  if(agents.dataset.keys!==keys){agents.innerHTML=ids.map(id=>`<button class="agent" data-agent="${id}"></button>`).join('');agents.dataset.keys=keys;}
+  for(const id of ids){
     const button=agents.querySelector(`[data-agent="${id}"]`),p=state.providers[id],r=p.primary?.remaining,active=state.pinned&&state.panelAgent===id;
     button.classList.toggle('active',active);
     for(const [key,value] of Object.entries({'aria-label':`${p.name}，${r==null?'用量未连接':Math.round(r)+'% 剩余'}`,'aria-expanded':String(active),title:`${p.name} · ${HUD.statusLabel(p)}`}))if(button.getAttribute(key)!==value)button.setAttribute(key,value);
-    const content=HUD.ring(p,state.settings)+(state.settings.showNumbers?`<span class="percent mono" style="--ring-color:${HUD.color(r)}">${r==null?'—':Math.round(r)+'%'}</span>`:'');
+    const content=HUD.ring(p,state.settings)+(state.settings.showNumbers?`<span class="percent mono" style="--ring-color:${HUD.color(r,true)}">${r==null?'—':Math.round(r)+'%'}</span>`:'');
     if(contents.get(button)!==content){button.innerHTML=content;contents.set(button,content);}
   }
 }

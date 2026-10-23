@@ -1,9 +1,10 @@
-const {app,BrowserWindow,ipcMain,screen,Tray,Menu,nativeImage,nativeTheme,globalShortcut,Notification,shell,dialog}=require('electron');
+const {app,BrowserWindow,ipcMain,screen,Tray,Menu,nativeImage,nativeTheme,globalShortcut,Notification,shell,dialog,safeStorage}=require('electron');
 const fs=require('node:fs');
 const path=require('node:path');
 const {createHash}=require('node:crypto');
 const {spawn}=require('node:child_process');
 const {CodexClient}=require('./codex.cjs');
+const {TrafficMonitor}=require('./traffic.cjs');
 const {maintainTopmost}=require('./topmost.cjs');
 const {monitorFullscreen}=require('./fullscreen.cjs');
 const {defaults,sanitizeSettings,settingsPages,resetSettings,snapshot,sampleUsage,dockBounds,panelBounds}=require('./model.cjs');
@@ -29,8 +30,12 @@ if(codex) codex={...codex,connected:false,stale:true};
 let dock,panel,preferences,tray,topmostGuard,fullscreenMonitor,pinned=false,panelAgent='codex',refreshTimer,refreshing=false,hoverTimer,hideTimer,baseline=null,dragState=null;
 let sources=readJSON(path.join(runtime,'sources.json'),{});
 const client=new CodexClient();
+const traffic=new TrafficMonitor(path.join(runtime,'traffic-subscription.enc'),safeStorage);
+let trafficTimer,trafficSaving=false;
+async function refreshTraffic(){const pending=traffic.refresh();broadcast();await pending;broadcast();}
+
 let connectionError='',hotkeyError='',usageSamplingStarted=false,autoStarted=process.argv.includes('--agent-auto');
-const names={codex:'Codex',claude:'Claude',deepseek:'DeepSeek'};
+const names={codex:'Codex',claude:'Claude',deepseek:'DeepSeek',airport:'白月光流量'};
 const assets={codex:'chatgpt',claude:'claude',deepseek:'deepseek'};
 function otherProvider(id){
   const file=sources[id];
@@ -44,8 +49,8 @@ function otherProvider(id){
     return {...normalized,id,name:names[id],connected:true,stale:Date.now()-stat.mtimeMs>300000,source:'file',plan:'文件快照'};
   }catch{return {id,name:names[id],connected:false,stale:true,quotas:[],buckets:[],sessions:[],primary:null,lifetimeTokens:null};}
 }
-function allProviders(){return {codex:codex || {id:'codex',name:'Codex',connected:false,quotas:[],buckets:[],sessions:[],primary:null,lifetimeTokens:null},claude:otherProvider('claude'),deepseek:otherProvider('deepseek')};}
-function state(){return {settings,providers:allProviders(),pinned,panelAgent,refreshing,connectionError,hotkeyError,dark:settings.theme==='dark'||settings.theme==='system'&&nativeTheme.shouldUseDarkColors,displays:screen.getAllDisplays().map(d=>({id:d.id,name:d.label || `显示器 ${d.id}`,primary:d.id===screen.getPrimaryDisplay().id})),sources:{claude:!!sources.claude,deepseek:!!sources.deepseek}};}
+function allProviders(){return {codex:codex || {id:'codex',name:'Codex',connected:false,quotas:[],buckets:[],sessions:[],primary:null,lifetimeTokens:null},claude:otherProvider('claude'),deepseek:otherProvider('deepseek'),airport:traffic.data};}
+function state(){return {traffic:{configured:traffic.configured(),loading:traffic.loading||trafficSaving},settings,providers:allProviders(),pinned,panelAgent,refreshing,connectionError,hotkeyError,dark:settings.theme==='dark'||settings.theme==='system'&&nativeTheme.shouldUseDarkColors,displays:screen.getAllDisplays().map(d=>({id:d.id,name:d.label || `显示器 ${d.id}`,primary:d.id===screen.getPrimaryDisplay().id})),sources:{claude:!!sources.claude,deepseek:!!sources.deepseek}};}
 function broadcast(){const value=state();for(const w of [dock,panel,preferences])if(w&&!w.isDestroyed())w.webContents.send('state',value);updateTray();}
 function saveSettings(){fs.writeFileSync(settingsPath+'.tmp',JSON.stringify(settings,null,2));fs.renameSync(settingsPath+'.tmp',settingsPath);}
 function logStartup(event){
@@ -69,7 +74,7 @@ function display(){return screen.getAllDisplays().find(d=>d.id===settings.displa
 function placeWindow(window,bounds){const old=window.getBounds();if(Object.keys(bounds).some(key=>old[key]!==bounds[key]))window.setBounds(bounds);}
 function setBounds(){
   if(!dock||dock.isDestroyed())return;
-  placeWindow(dock,dockBounds(display().workArea,settings,settings.agents.length));
+  placeWindow(dock,dockBounds(display().workArea,settings,settings.agents.length+(settings.showTraffic?1:0)));
   if(panel&&!panel.isDestroyed()){
     const area=display().workArea;
     placeWindow(panel,panelBounds(dock.getBounds(),area,settings.edge,Math.min(390,area.width),Math.min(Math.ceil(470*settings.fontScale/100),area.height)));
@@ -86,7 +91,7 @@ function secureWindow(options,view){
   return w;
 }
 function createDock(){
-  dock=secureWindow({title:'Token Glance · 贴边用量',...dockBounds(display().workArea,settings,settings.agents.length),frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:false},'dock');
+  dock=secureWindow({title:'Token Glance · 贴边用量',...dockBounds(display().workArea,settings,settings.agents.length+(settings.showTraffic?1:0)),frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:false},'dock');
   dock.once('ready-to-show',()=>{dock.showInactive();logStartup('dock-visible');});
   dock.on('show',()=>topmostGuard?.refresh());
   dock.on('closed',()=>{dock=null;fullscreenMonitor?.setWindows?.(settings.alwaysOnTop?[dock,panel]:[]);});
@@ -183,7 +188,19 @@ ipcMain.handle('action',async(event,name,payload)=>{
   else if(name==='settings')showSettings();
   else if(name==='close-settings')preferences?.close();
   else if(name==='minimize')preferences?.minimize();
-  else if(name==='refresh')await refresh();
+  else if(name==='refresh'){if(panelAgent==='airport')await refreshTraffic();else{refreshTraffic();await refresh();}}
+  else if(name==='traffic-connect'||name==='traffic-clear'){
+    if(event.sender!==preferences?.webContents)throw Error('Settings window required');
+    if(trafficSaving)return {ok:false,message:'连接正在验证，请稍候'};
+    trafficSaving=true;broadcast();
+    try{
+      if(name==='traffic-clear')traffic.clear();
+      else await traffic.configure(payload);
+      if(name==='traffic-connect')updateSettings(sanitizeSettings({...settings,showTraffic:true}));
+      return {ok:true};
+    }catch(error){return {ok:false,message:error.message};}
+    finally{trafficSaving=false;broadcast();}
+  }
   else if(name==='reset-settings'){
     if(event.sender!==preferences?.webContents)throw new Error('Settings window required');
     if(!Object.hasOwn(settingsPages,payload))throw new Error('Unknown settings page');
@@ -202,7 +219,7 @@ ipcMain.handle('action',async(event,name,payload)=>{
     const p=screen.getCursorScreenPoint(),d=screen.getDisplayNearestPoint(p),a=d.workArea;
     const edges={left:Math.abs(p.x-a.x),right:Math.abs(p.x-a.x-a.width),top:Math.abs(p.y-a.y),bottom:Math.abs(p.y-a.y-a.height)};
     settings.edge=Object.keys(edges).sort((x,y)=>edges[x]-edges[y])[0];settings.displayId=d.id;
-    const vertical=['left','right'].includes(settings.edge);const bounds=dockBounds(a,settings,settings.agents.length);
+    const vertical=['left','right'].includes(settings.edge);const bounds=dockBounds(a,settings,settings.agents.length+(settings.showTraffic?1:0));
     settings.position=Math.max(0,Math.min(1,vertical?(dock.getBounds().y-a.y)/(a.height-bounds.height):(dock.getBounds().x-a.x)/(a.width-bounds.width)));
     dragState=null;saveSettings();setBounds();broadcast();
   }
@@ -231,6 +248,7 @@ else{
     fullscreenMonitor=monitorFullscreen(path.join(runtime,'FullscreenState.exe'),()=>topmostGuard?.refresh());
     topmostGuard=maintainTopmost(()=>[dock,panel],()=>settings.alwaysOnTop&&!fullscreenMonitor.shouldYield());
     saveSettings();applyStartup();createDock();applyHotkey();updateTray();refresh();
+    refreshTraffic();trafficTimer=setInterval(refreshTraffic,300000);trafficTimer.unref();
     nativeTheme.on('updated',broadcast);
     screen.on('display-metrics-changed',()=>{setBounds();broadcast();});
     screen.on('display-removed',()=>{setBounds();broadcast();});
@@ -239,4 +257,4 @@ else{
   }).catch(error=>{logStartup(`failed ${error.name}`);app.exit(1);});
 }
 app.on('window-all-closed',()=>{});
-app.on('before-quit',()=>{topmostGuard?.stop();fullscreenMonitor?.stop();clearTimeout(refreshTimer);clearTimeout(hideTimer);clearTimeout(hoverTimer);globalShortcut.unregisterAll();client.stop();tray?.destroy();});
+app.on('before-quit',()=>{clearInterval(trafficTimer);topmostGuard?.stop();fullscreenMonitor?.stop();clearTimeout(refreshTimer);clearTimeout(hideTimer);clearTimeout(hoverTimer);globalShortcut.unregisterAll();client.stop();tray?.destroy();});
