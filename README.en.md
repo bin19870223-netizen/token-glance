@@ -99,3 +99,6 @@ Build before running native window tests, and run them on a normal Windows deskt
 Code is available under the [MIT license](LICENSE). Interaction references: [Agent HUD Open](https://github.com/jazzenchen/agent-hud-open); settings layout reference: [session-model-usage](https://github.com/CyclicRedundancyCHK/session-model-usage). This is an independent Electron / C# implementation.
 
 Provider logos come from LobeHub's Lobe Icons and identify their respective services; they do not imply endorsement. Sources and retained licenses are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+
+DeepSeek API balance: enter your official API key locally under Settings → Data sources → DeepSeek API balance. The key is encrypted with Windows-backed safeStorage. The app queries the fixed official balance endpoint every five minutes, showing available, topped-up and granted balances. This endpoint does not provide token usage; no token counts or quota percentages are inferred.

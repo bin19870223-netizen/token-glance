@@ -6,9 +6,10 @@ function render(state){
   current=state;HUD.applyTheme(state);const p=state.providers[state.panelAgent];
   el('agent-name').textContent=p.name;el('agent-logo').src=HUD.logo(p.id);el('agent-logo').className='agent-logo '+p.id;
   el('plan').textContent=planNames[p.plan]||p.plan||'用量监视器';el('connection').innerHTML=`<i class="dot ${p.connected&&!p.stale?'':'offline'}"></i>${HUD.statusLabel(p)}`;
-  document.querySelector('[data-tab="sessions"]').hidden=p.kind==='traffic';el('sessions-shortcut').hidden=p.kind==='traffic';el('mode').hidden=p.kind==='traffic';
+  document.querySelector('[data-tab="sessions"]').hidden=['traffic','balance'].includes(p.kind);el('sessions-shortcut').hidden=['traffic','balance'].includes(p.kind);el('mode').hidden=['traffic','balance'].includes(p.kind);
   el('pin').classList.toggle('selected',state.pinned);el('pin').setAttribute('aria-pressed',state.pinned);el('refresh').disabled=state.refreshing;
   el('updated').textContent=p.checkedAt?`${p.stale?'上次记录':'更新于'} ${new Date(p.checkedAt).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'})}`:'等待首次连接';
+  if(p.kind==='balance'){tab='overview';document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab==='overview'));el('refresh').disabled=!!state.deepseek?.loading;el('content').innerHTML=balanceHTML(p);return;}
   if(p.kind==='traffic'){tab='overview';el('refresh').disabled=!!state.traffic?.loading;el('content').innerHTML=trafficHTML(p);return;}
   document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===tab));el('mode').textContent=used?'已用 %':'剩余 %';
   const content=el('content');
@@ -19,6 +20,11 @@ function render(state){
   if(!p.connected&&!p.primary){content.innerHTML=`<div class="empty">${HUD.icon('agents')}<p>${p.id==='codex'?'等待 Codex 连接':'还没有连接 '+p.name}</p><small>${p.id==='codex'?'使用本机 Codex 的现有登录，无需 API Key。':'在设置 → 数据源中选择用量快照。'}</small></div>`;return;}
   const data=HUD.chartData(p,state.settings.chartDays);
   content.innerHTML=(p.stale?'<div class="offline-note">连接暂不可用，以下是上次记录。</div>':'')+HUD.quotas(p,state.settings,used)+(p.quotas.length?'':'<div class="offline-note">此数据源没有返回额度信息。</div>')+`<div class="between chart-head"><h3>Token 活动</h3><span class="chart-total mono">${HUD.number(data.total)} <small>tokens</small></span></div><div class="between chart-controls"><small>${data.hourly?'本机采样 · 按小时':'账号 · 按日统计'}</small><div class="segmented"><button data-days="1" class="${state.settings.chartDays===1?'active':''}">24 小时</button><button data-days="7" class="${state.settings.chartDays===7?'active':''}">7 天</button><button data-days="30" class="${state.settings.chartDays===30?'active':''}">30 天</button></div></div>`+(data.slots.length?HUD.chartHTML(data):'<div class="empty">'+(data.hourly?(p.id==='codex'?'尚未获得 24 小时采样<br><small>从本次更新起累计，未采集时段无数据。</small>':'此数据源暂无小时明细'):'暂无 Token 活动数据')+'</div>')+`<div class="between lifetime"><span>账号累计</span><strong class="mono">${HUD.number(p.lifetimeTokens)} tokens</strong></div><div class="between lifetime"><span>额度消耗速率</span><strong class="mono">${p.burnRate==null?'采样中':p.burnRate.toFixed(1)+'% / 小时'}</strong></div><p class="chart-note">${data.hourly?'已采样 '+Math.floor(data.observed/3600000)+' 小时 '+Math.floor(data.observed/60000)%60+' 分钟 / 24 小时。增量按采样时刻计入小时段；未运行或连接中断时段不补算。':'Token 为账号记录，日数据可能延迟。'} ${p.burnRate==null?'额度消耗速率在至少 5 分钟采样后显示。 ':''}额度与 Token 分别统计。</p>`;
+}
+function balanceHTML(p){
+  if(!p.balance)return '<div class="empty"><p>'+HUD.esc(p.error||'尚未连接 DeepSeek API')+'</p><small>在设置 → 数据源中填写官方 API Key。</small></div>';
+  const money=(v,c)=>HUD.esc((c==='CNY'?'¥':'$')+v);
+  return (p.error?'<div class="offline-note">'+HUD.esc(p.error)+'。以下为上次记录。</div>':'')+p.balance.balances.map(b=>'<div class="quota-row"><div class="between"><span class="quota-label">可用余额 · '+b.currency+'</span><strong class="quota-value">'+money(b.total_balance,b.currency)+'</strong></div></div>'+[['充值余额',b.topped_up_balance],['赠送余额',b.granted_balance]].map(([label,value])=>'<div class="between lifetime"><span>'+label+'</span><strong>'+money(value,b.currency)+'</strong></div>').join('')).join('')+'<p class="chart-note">'+(p.balance.available?'账户有可用余额。':'账户暂无可用余额。')+'来自 DeepSeek 官方余额接口，每 5 分钟更新。此接口未提供 Token 消耗明细。</p>';
 }
 function trafficHTML(p){
   const t=p.traffic;

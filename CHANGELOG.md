@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- 接入 DeepSeek 官方 API 余额：本机加密保存密钥，贴边条显示金额，面板显示充值与赠送余额。
+
 - Add optional Baiyueguang subscription traffic to the existing dock, detail panel and data-source settings, using HTTPS subscription response headers and Windows-encrypted local configuration.
 - Separate warning text and ring/bar colors in light and dark themes for better legibility on translucent surfaces.
 

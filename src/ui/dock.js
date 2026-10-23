@@ -6,9 +6,10 @@ function render(state){
   if(agents.dataset.keys!==keys){agents.innerHTML=ids.map(id=>`<button class="agent" data-agent="${id}"></button>`).join('');agents.dataset.keys=keys;}
   for(const id of ids){
     const button=agents.querySelector(`[data-agent="${id}"]`),p=state.providers[id],r=p.primary?.remaining,active=state.pinned&&state.panelAgent===id;
+    const balance=p.balance?.balances?.[0],amount=balance?(balance.currency==='CNY'?'¥':'$')+Number(balance.total_balance).toLocaleString('zh-CN',{maximumFractionDigits:2}):null;
     button.classList.toggle('active',active);
-    for(const [key,value] of Object.entries({'aria-label':`${p.name}，${r==null?'用量未连接':Math.round(r)+'% 剩余'}`,'aria-expanded':String(active),title:`${p.name} · ${HUD.statusLabel(p)}`}))if(button.getAttribute(key)!==value)button.setAttribute(key,value);
-    const content=HUD.ring(p,state.settings)+(state.settings.showNumbers?`<span class="percent mono" style="--ring-color:${HUD.color(r,true)}">${r==null?'—':Math.round(r)+'%'}</span>`:'');
+    for(const [key,value] of Object.entries({'aria-label':`${p.name}，${amount!=null?'余额 '+amount:r==null?'用量未连接':Math.round(r)+'% 剩余'}`,'aria-expanded':String(active),title:`${p.name} · ${HUD.statusLabel(p)}`}))if(button.getAttribute(key)!==value)button.setAttribute(key,value);
+    const content=HUD.ring(p,state.settings)+(state.settings.showNumbers?`<span class="percent mono" style="--ring-color:${HUD.color(r,true)}">${amount??(r==null?'—':Math.round(r)+'%')}</span>`:'');
     if(contents.get(button)!==content){button.innerHTML=content;contents.set(button,content);}
   }
 }

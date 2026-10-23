@@ -24,7 +24,7 @@ function fixture(){
   const area={x:0,y:0,width:1920,height:1040},display={id:1,workArea:area};
   const electron={app:fakeApp,ipcMain:{handle:(name,fn)=>handlers[name]=fn},screen:{getAllDisplays:()=>[display],getPrimaryDisplay:()=>display,getCursorScreenPoint:()=>cursor},nativeTheme:{shouldUseDarkColors:false},globalShortcut:{unregisterAll(){},register:key=>{hotkeys.push(key);return true;}},dialog:{showMessageBox:async(owner,options)=>{messages.push({owner,options});return {response};}}};
   const fakeFS={mkdirSync(){},readFileSync:file=>{if(!files.has(file))throw Error('missing');return files.get(file);},writeFileSync:(file,text)=>files.set(file,text),renameSync:(from,to)=>{files.set(to,files.get(from));files.delete(from);}};
-  const context=vm.createContext({__dirname:root,process:{argv:[],execPath:'electron.exe',env:{}},fixture:{preferences,dock,panel},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},require:name=>name==='electron'?electron:name==='node:fs'?fakeFS:name==='./traffic.cjs'?require('../src/traffic.cjs'):name==='./codex.cjs'?{CodexClient:class{}}:name==='./fullscreen.cjs'?require('../src/fullscreen.cjs'):name==='./topmost.cjs'?require('../src/topmost.cjs'):name==='./model.cjs'?require('../src/model.cjs'):require(name)});
+  const context=vm.createContext({__dirname:root,process:{argv:[],execPath:'electron.exe',env:{}},fixture:{preferences,dock,panel},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},require:name=>name==='electron'?electron:name==='node:fs'?fakeFS:name==='./deepseek.cjs'?require('../src/deepseek.cjs'):name==='./traffic.cjs'?require('../src/traffic.cjs'):name==='./codex.cjs'?{CodexClient:class{}}:name==='./fullscreen.cjs'?require('../src/fullscreen.cjs'):name==='./topmost.cjs'?require('../src/topmost.cjs'):name==='./model.cjs'?require('../src/model.cjs'):require(name)});
   context.fixture.monitor={shouldYield:()=>yieldFullscreen};
   vm.runInContext(source+'\npreferences=fixture.preferences;dock=fixture.dock;fullscreenMonitor=fixture.monitor;',context);
   return {handlers,files,settingsFile,usageFile,sourcesFile,messages,login,hotkeys,preferences,dock,timers,closes,run:code=>vm.runInContext(code,context),cursor:point=>cursor=point,event:{sender:preferences.webContents,senderFrame:preferences.webContents.mainFrame},confirm:(choice=2)=>response=choice,close:()=>destroyed=true,yieldFullscreen:()=>yieldFullscreen=true};
@@ -45,6 +45,8 @@ test('subscription changes require the settings main frame and never accept requ
   const f=fixture();
   await assert.rejects(f.handlers.action({sender:f.dock.webContents,senderFrame:f.dock.webContents.mainFrame},'traffic-connect','https://www.asiassn.com/fixture'),/Settings window required/);
   await assert.rejects(f.handlers.action({...f.event,senderFrame:{}},'traffic-clear'),/Untrusted sender/);
+  await assert.rejects(f.handlers.action({sender:f.dock.webContents,senderFrame:f.dock.webContents.mainFrame},'deepseek-connect','sk-test-fixture-only'),/Settings window required/);
+  await assert.rejects(f.handlers.action({...f.event,senderFrame:{}},'deepseek-clear'),/Untrusted sender/);
 });
 test('traffic visibility is independent of the monitored Agent list and follows source-page reset',()=>{
   const before=sanitizeSettings({agents:['claude'],showTraffic:true});

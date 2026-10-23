@@ -99,3 +99,6 @@ npm run test:topmost
 项目代码按 [MIT](LICENSE) 提供。交互参考 [Agent HUD Open](https://github.com/jazzenchen/agent-hud-open)，设置布局参考 [session-model-usage](https://github.com/CyclicRedundancyCHK/session-model-usage)。本项目为独立 Electron / C# 实现。
 
 提供商标志来自 LobeHub 的 Lobe Icons，仅用于识别服务，不代表官方支持或背书。来源及保留的许可证见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+
+DeepSeek 官方 API 余额：在「设置 → 数据源 → DeepSeek · 官方 API 余额」填写 API Key，点击「保存并连接」。密钥仅在本机 Windows 加密保存；每 5 分钟查询可用、充值与赠送余额。余额接口不提供 Token 消耗明细，界面不会据此推算百分比或 Token 数。

@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-let current,page='appearance',dragging=false,saveTimer,trafficBusy=false,trafficMessage='';
+let current,page='appearance',dragging=false,saveTimer,trafficBusy=false,trafficMessage='',deepseekBusy=false,deepseekMessage='';
 const pages={appearance:['外观','安静一点，也可以很漂亮。','appearance'],layout:['屏幕与布局','贴着屏幕边缘，留出你的工作空间。','layout'],display:['显示内容','只留下你想一眼看到的信息。','activity'],startup:['启动与运行','和你的 Agent 一起出现，用完就轻轻退场。','power'],sources:['数据源','真实用量，清楚知道它从哪里来。','agents'],notifications:['提醒与快捷键','需要的时候出现，其余时间保持安静。','bell'],about:['关于','Your agents, at a glance.','info']};
 $('brand').innerHTML=HUD.icon('hud');$('minimize').innerHTML=HUD.icon('minimize');$('close').innerHTML=HUD.icon('close');
 $('navigation').innerHTML=Object.entries(pages).map(([id,[label,,ico]])=>`<button data-page="${id}" class="${id===page?'active':''}">${HUD.icon(ico)}<span>${label}</span></button>`).join('');
@@ -43,9 +43,22 @@ function startup(){
     `<p class="section-note">填写 exe 文件名，多个名称用逗号分隔；不要填写路径或命令。Codex 会区分官方桌面应用与本工具自己的只读连接。Claude Code 的 Node 版按专用命令路径识别。这里的进程识别只控制启动，不会改变数据源的连接能力。</p>`;
 }
 function sources(){
-  const providerRows=Object.entries(current.providers).filter(([id])=>id!=='airport').map(([id,p])=>`<div class="setting source-row"><div class="source-text"><img src="${HUD.logo(id)}" class="agent-logo ${id}" alt=""><div><div class="setting-label">${p.name} <span class="badge">${HUD.statusLabel(p)}</span></div><div class="setting-description">${id==='codex'?'本机 Codex 只读接口 · 额度、Token、会话':current.sources[id]?'本地 JSON 快照 · 5 分钟后标为旧数据':'本地 JSON 快照 · 尚未配置'}</div></div></div><div class="control">${id!=='codex'?`<button class="button" data-source="${id}">选择文件</button>`:''}<button role="switch" class="switch ${current.settings.agents.includes(id)?'on':''}" aria-checked="${current.settings.agents.includes(id)}" aria-label="显示 ${p.name}" data-agent="${id}"></button></div></div>`).join('');
-  return heading('监视的 Agent')+card(providerRows)+trafficSettings()+heading('同步')+card(select('refreshSeconds','自动刷新','只读取用量，不触发模型请求。',[[30,'每 30 秒'],[60,'每分钟'],[120,'每 2 分钟'],[300,'每 5 分钟'],[600,'每 10 分钟']])+row('立即同步',current.connectionError||'使用 Codex 当前登录的账号。',`<button class="button" id="refresh-data" ${current.refreshing?'disabled':''}>${current.refreshing?'同步中…':'刷新用量'}</button>`))+
-  `<p class="section-note">Claude 与 DeepSeek 当前使用文件适配器，尚未接入各自账号的实时接口。JSON 可提供 primary / secondary（usedPercent、windowDurationMins、resetsAt）、lifetimeTokens 和 dailyUsageBuckets。不会读取浏览器 Cookie、密码或 API Key。</p>`;
+  const providerRows=Object.entries(current.providers).filter(([id])=>id!=='airport').map(([id,p])=>`<div class="setting source-row"><div class="source-text"><img src="${HUD.logo(id)}" class="agent-logo ${id}" alt=""><div><div class="setting-label">${p.name} <span class="badge">${HUD.statusLabel(p)}</span></div><div class="setting-description">${id==='deepseek'&&current.deepseek?.configured?'官方 API 余额 · 5 分钟更新':id==='codex'?'本机 Codex 只读接口 · 额度、Token、会话':current.sources[id]?'本地 JSON 快照 · 5 分钟后标为旧数据':'本地 JSON 快照 · 尚未配置'}</div></div></div><div class="control">${id!=='codex'?`<button class="button" data-source="${id}">选择文件</button>`:''}<button role="switch" class="switch ${current.settings.agents.includes(id)?'on':''}" aria-checked="${current.settings.agents.includes(id)}" aria-label="显示 ${p.name}" data-agent="${id}"></button></div></div>`).join('');
+  return heading('监视的 Agent')+card(providerRows)+deepseekSettings()+trafficSettings()+heading('同步')+card(select('refreshSeconds','自动刷新','只读取用量，不触发模型请求。',[[30,'每 30 秒'],[60,'每分钟'],[120,'每 2 分钟'],[300,'每 5 分钟'],[600,'每 10 分钟']])+row('立即同步',current.connectionError||'使用 Codex 当前登录的账号。',`<button class="button" id="refresh-data" ${current.refreshing?'disabled':''}>${current.refreshing?'同步中…':'刷新用量'}</button>`))+
+  `<p class="section-note">Claude 使用文件适配器；DeepSeek 可连接官方 API 余额或选择本地快照。JSON 可提供 primary / secondary（usedPercent、windowDurationMins、resetsAt）、lifetimeTokens 和 dailyUsageBuckets。不会读取浏览器 Cookie、密码或其他软件保存的 API Key。</p>`;
+}
+function deepseekSettings(){
+  const configured=!!current.deepseek?.configured;
+  return heading('DeepSeek · 官方 API 余额')+card('<div class="traffic-connection"><label for="deepseek-key" class="setting-label">DeepSeek API Key</label><input id="deepseek-key" type="password" autocomplete="off" spellcheck="false" aria-label="DeepSeek API Key" placeholder="'+(configured?'已加密保存；填写新密钥可替换':'在本机粘贴 sk- 开头的官方 API Key')+'"><div class="row gap8"><button class="button" id="deepseek-connect" '+(deepseekBusy?'disabled':'')+'>'+(deepseekBusy?'正在验证…':'保存并连接')+'</button>'+(configured?'<button class="button" id="deepseek-clear" '+(deepseekBusy?'disabled':'')+'>移除 API 连接</button>':'')+'</div><p class="setting-description" role="status">'+HUD.esc(deepseekMessage||current.providers.deepseek?.error||(configured?'已加密保存，每 5 分钟查询官方余额。':'仅查询 api.deepseek.com 的余额；密钥在本机 Windows 加密保存。'))+'</p><p class="setting-description">显示充值余额与赠送余额。官方余额接口不提供 Token 消耗明细。</p></div>');
+}
+async function connectDeepSeek(clear=false){
+  if(deepseekBusy)return;
+  const input=$('deepseek-key'),value=clear?'':input.value;
+  if(!clear&&!value.trim()){deepseekMessage='请先填写 DeepSeek API Key';render(current);return;}
+  deepseekBusy=true;deepseekMessage='';input.value='';input.blur();render(current);
+  try{const result=await window.hud.action(clear?'deepseek-clear':'deepseek-connect',value);deepseekMessage=result.ok?(clear?'已移除本机 API Key':'连接成功，已显示 DeepSeek 余额'):result.message;current=await window.hud.state();}
+  catch{deepseekMessage='DeepSeek 连接失败，请稍后重试';}
+  finally{deepseekBusy=false;render(current);}
 }
 function trafficSettings(){
   const configured=!!current.traffic?.configured;
@@ -66,7 +79,7 @@ const renderers={appearance,layout,display,startup,sources,notifications,about};
 function render(state){
   current=state;HUD.applyTheme(state);
   $('sidebar-status').textContent=state.providers.codex.connected?'Codex 已连接':'Codex 等待连接';$('sidebar-dot').classList.toggle('offline',!state.providers.codex.connected);
-  if(dragging||document.activeElement?.dataset.number||document.activeElement?.id==='traffic-link')return;
+  if(dragging||document.activeElement?.dataset.number||['traffic-link','deepseek-key'].includes(document.activeElement?.id))return;
   const focus=document.activeElement?.id;
   $('page-title').textContent=pages[page][0];$('page-subtitle').textContent=pages[page][1];
   $('page').innerHTML=renderers[page]();
@@ -85,6 +98,8 @@ document.addEventListener('click',e=>{
   const c=e.target.closest('[data-key]');if(c)patch({[c.dataset.key]:c.dataset.value});
   const a=e.target.closest('[data-agent]');if(a){let agents=current.settings.agents.filter(id=>id!==a.dataset.agent);if(!current.settings.agents.includes(a.dataset.agent))agents.push(a.dataset.agent);patch({agents});}
   const f=e.target.closest('[data-source]');if(f)window.hud.action('pick-source',f.dataset.source);
+  if(e.target.closest('#deepseek-connect'))connectDeepSeek();
+  if(e.target.closest('#deepseek-clear'))connectDeepSeek(true);
   if(e.target.closest('#traffic-connect'))connectTraffic();
   if(e.target.closest('#traffic-clear'))connectTraffic(true);
   if(e.target.closest('#refresh-data'))window.hud.action('refresh');
@@ -114,6 +129,7 @@ $('reset-settings').onclick=async()=>{
   finally{button.disabled=false;}
 };
 document.addEventListener('keydown',e=>{
+  if(e.target.id==='deepseek-key'&&e.key==='Enter'){e.preventDefault();connectDeepSeek();return;}
   if(e.target.id==='traffic-link'&&e.key==='Enter'){e.preventDefault();connectTraffic();return;}
   const key=e.target.dataset.number;
   if(key&&e.key==='Enter'){

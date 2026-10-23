@@ -10,6 +10,8 @@
 
 账号服务是否联网、如何保存登录、是否自行更新凭据由 Codex 控制。本工具不保证其子进程完全不产生网络流量或第三方运行日志。
 
+启用 DeepSeek 官方余额后：本工具仅向 `https://api.deepseek.com/user/balance` 发送 GET 请求，每 5 分钟刷新；API Key 仅通过 Authorization 请求头发送给该固定端点。不跟随重定向，不发起模型请求；接口仅返回金额，不提供 Token 消耗明细。
+
 ## 持久化
 
 | 位置 | 内容 | 是否应公开 |
@@ -17,6 +19,7 @@
 | `runtime/settings.json` | 偏好、监控进程名称、显示器 ID | 否 |
 | `runtime/usage.json` | 聚合额度、按日用量、计划类型、最近约 25 小时的累计 Token 数字采样及账号标识摘要 | 否 |
 | `runtime/sources.json` | 用户选择的 JSON 文件路径 | 否 |
+| `runtime/deepseek-key.enc` | 用户手动填写的 DeepSeek API Key，通过 Windows 本机加密保存，不回传 UI 状态、不记录日志 | 否 |
 | `runtime/traffic-subscription.enc` | 用户手动填写的白月光订阅链接，通过 Electron safeStorage / Windows 本机加密保存 | 否 |
 | `runtime/user-data/`、缓存/日志/崩溃目录 | Electron 本地运行信息 | 否 |
 | 内存 | 最近会话标题和 ID | 不持久化到用量缓存 |
