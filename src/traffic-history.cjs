@@ -5,7 +5,13 @@ function summaries(segments,now){
   return [6,12,24].map(hours=>{
     const rows=segments.filter(s=>validSegment(s)&&s.start>=now-hours*3600000&&s.end<=now);
     const upload=rows.reduce((n,s)=>n+s.upload,0),download=rows.reduce((n,s)=>n+s.download,0);
-    return {hours,upload,download,used:upload+download,observed:rows.reduce((n,s)=>n+s.end-s.start,0)};
+    const start=now-hours*3600000,slots=Array.from({length:hours},(_,i)=>({at:start+i*3600000,bytes:null}));
+    for(const row of rows){
+      const first=Math.max(0,Math.floor((row.start-start)/3600000)),last=Math.min(hours-1,Math.floor((row.end-start-1)/3600000));
+      for(let i=first;i<=last;i++)slots[i].bytes??=0;
+      slots[last].bytes+=row.upload+row.download;
+    }
+    return {hours,upload,download,used:upload+download,observed:rows.reduce((n,s)=>n+s.end-s.start,0),start,end:now,slots};
   });
 }
 class TrafficHistory{

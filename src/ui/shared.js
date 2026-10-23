@@ -60,9 +60,11 @@ function chartData(provider,days,now=Date.now()){
   return {slots,total:slots.reduce((s,b)=>s+(b.tokens??0),0),start:slots[0].date,end:latest};
 }
 function chartHTML(data){
-  const max=Math.max(1,...data.slots.map(b=>b.tokens||0));
+  const value=b=>data.metric==='bytes'?b.bytes:b.tokens;
+  const max=Math.max(1,...data.slots.map(b=>value(b)||0));
   const time=at=>new Date(at).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false});
-  return `<div class="chart">${data.slots.map(b=>`<div class="bar ${b.tokens==null?'missing':''}" title="${esc(data.hourly?time(b.at):b.date)} · ${b.tokens==null?'无数据':new Intl.NumberFormat('zh-CN').format(b.tokens)+' tokens'}" style="--height:${b.tokens==null?2:Math.max(2,b.tokens/max*100)}%"></div>`).join('')}</div><div class="between chart-labels"><span>${data.hourly?time(data.start):data.start.slice(5).replace('-',' / ')}</span><span>${data.hourly?'最近 24 小时':`截至 ${data.end.slice(5).replace('-',' / ')} · 按日`}</span></div>`;
+  return `<div class="chart">${data.slots.map(b=>{const n=value(b);return `<div class="bar ${n==null?'missing':''}" title="${esc(data.hourly?time(b.at):b.date)} · ${n==null?'无数据':data.metric==='bytes'?bytes(n):new Intl.NumberFormat('zh-CN').format(n)+' tokens'}" style="--height:${n==null?2:Math.max(2,n/max*100)}%"></div>`;}).join('')}</div><div class="between chart-labels"><span>${data.hourly?time(data.start):data.start.slice(5).replace('-',' / ')}</span><span>${data.hourly?'最近 '+(data.hours||24)+' 小时':`截至 ${data.end.slice(5).replace('-',' / ')} · 按日`}</span></div>`;
 }
+
 function statusLabel(p){return p.stale?'上次记录':p.connected?(p.source==='file'?'文件快照':'已连接'):'未连接';}
 window.HUD={logo,providerIds,bytes,icon,esc,number,applyTheme,color,ring,countdown,quotas,chartData,chartHTML,statusLabel};

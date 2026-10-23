@@ -1,4 +1,4 @@
-let current,tab='overview',used=false;
+let current,tab='overview',used=false,trafficHours=24;
 const el=id=>document.getElementById(id);
 const planNames={prolite:'Pro Lite',pro:'ChatGPT Pro',plus:'ChatGPT Plus',team:'ChatGPT Business',enterprise:'ChatGPT Enterprise',free:'ChatGPT Free'};
 el('pin').innerHTML=HUD.icon('pin');el('refresh').innerHTML=HUD.icon('refresh');el('close').innerHTML=HUD.icon('close');el('settings').innerHTML=HUD.icon('settings');el('sessions-shortcut').innerHTML=HUD.icon('activity');
@@ -27,9 +27,11 @@ function balanceHTML(p){
   return (p.error?'<div class="offline-note">'+HUD.esc(p.error)+'。以下为上次记录。</div>':'')+p.balance.balances.map(b=>'<div class="quota-row"><div class="between"><span class="quota-label">可用余额 · '+b.currency+'</span><strong class="quota-value">'+money(b.total_balance,b.currency)+'</strong></div></div>'+[['充值余额',b.topped_up_balance],['赠送余额',b.granted_balance]].map(([label,value])=>'<div class="between lifetime"><span>'+label+'</span><strong>'+money(value,b.currency)+'</strong></div>').join('')).join('')+'<p class="chart-note">'+(p.balance.available?'账户有可用余额。':'账户暂无可用余额。')+'来自 DeepSeek 官方余额接口，每 5 分钟更新。此接口未提供 Token 消耗明细。</p>';
 }
 function recentTrafficHTML(p){
-  const rows=p.recentUsage||[6,12,24].map(hours=>({hours,observed:0}));
-  return '<h3>近期流量用量</h3>'+rows.map(r=>'<div class="between lifetime"><span>最近 '+r.hours+' 小时<small style="display:block">已采样 '+Math.floor(r.observed/3600000)+' 小时 '+Math.floor(r.observed/60000)%60+' 分钟</small></span><strong>'+ (r.observed?HUD.bytes(r.used):'—')+'</strong></div>').join('')+'<p class="chart-note">'+HUD.esc(p.historyError||'按订阅累计上传与下载的增量统计，每 5 分钟采样。仅计入窗口内完整采样区间；未运行、连接中断及套餐重置期间不补算。')+'</p>';
+  const now=p.checkedAt||Date.now(),r=p.recentUsage?.find(r=>r.hours===trafficHours)||{hours:trafficHours,observed:0,start:now-trafficHours*3600000,end:now,slots:[]};
+  const data={...r,metric:'bytes',hourly:true,slots:r.slots?.length?r.slots:Array.from({length:trafficHours},(_,i)=>({at:r.start+i*3600000,bytes:null}))};
+  return '<div class="between chart-head"><h3>流量活动</h3><span class="chart-total mono">'+(r.observed?HUD.bytes(r.used):'—')+'</span></div><div class="between chart-controls"><small>本机采样 · 按小时</small><div class="segmented" aria-label="流量统计时段">'+[6,12,24].map(h=>'<button data-traffic-hours="'+h+'" class="'+(h===trafficHours?'active':'')+'" aria-pressed="'+(h===trafficHours)+'">'+h+' 小时</button>').join('')+'</div></div>'+HUD.chartHTML(data)+'<p class="chart-note">已采样 '+Math.floor(r.observed/3600000)+' 小时 '+Math.floor(r.observed/60000)%60+' 分钟 / '+trafficHours+' 小时。'+HUD.esc(p.historyError||'每 5 分钟采样；增量计入采样结束所在小时。未采集时段显示为无数据，不补算历史。')+'</p>';
 }
+
 function trafficHTML(p){
   const t=p.traffic;
   if(!t)return '<div class="empty">'+HUD.icon('agents')+'<p>'+HUD.esc(p.error||'尚未连接白月光流量')+'</p><small>在设置 → 数据源中填写本站原始订阅链接。</small></div>';
@@ -37,6 +39,7 @@ function trafficHTML(p){
   return (p.error?'<div class="offline-note">'+HUD.esc(p.error)+'。以下为上次记录。</div>':'')+'<div class="quota-row"><div class="between"><span class="quota-label">剩余流量</span><strong class="quota-value" style="--quota-color:'+HUD.color(remaining,true)+'">'+HUD.bytes(t.remaining)+'</strong></div><div class="quota-track"><div class="quota-fill" style="--fill:'+(remaining??0)+'%;--quota-color:'+HUD.color(remaining)+'"></div></div><div class="between quota-sub"><span>已用 '+HUD.bytes(t.used)+'</span><span>总量 '+HUD.bytes(t.total)+'</span></div></div>'+[['上传',HUD.bytes(t.upload)],['下载',HUD.bytes(t.download)],['到期时间',t.expiresAt?new Date(t.expiresAt*1000).toLocaleString('zh-CN'):'订阅未提供到期时间']].map(([label,value])=>'<div class="between lifetime"><span>'+label+'</span><strong>'+value+'</strong></div>').join('')+recentTrafficHTML(p)+'<p class="chart-note">来自订阅服务的流量统计，每 5 分钟更新。流量单位为二进制；套餐重置规则以白月光后台为准。</p>';
 }
 document.addEventListener('click',e=>{
+  const hours=e.target.closest('[data-traffic-hours]');if(hours){const value=Number(hours.dataset.trafficHours);if([6,12,24].includes(value)){trafficHours=value;render(current);}}
   const t=e.target.closest('[data-tab]');if(t){tab=t.dataset.tab;render(current);}
   const d=e.target.closest('[data-days]');if(d)window.hud.settings({chartDays:Number(d.dataset.days)});
   const s=e.target.closest('[data-thread]');if(s)window.hud.action('thread',s.dataset.thread);

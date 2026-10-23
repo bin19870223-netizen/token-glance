@@ -48,14 +48,16 @@ app.whenReady().then(async()=>{
       return labels;
     }})()`);
     if(fs.readFileSync(monitor.file,'utf8').includes('ui-fixture'))throw Error('Subscription was stored in plaintext');
-    monitor.data.recentUsage=[6,12,24].map((hours,i)=>({hours,used:(i+1)*256*1024**2,upload:0,download:(i+1)*256*1024**2,observed:300000}));update();
+    monitor.data.recentUsage=[6,12,24].map((hours,i)=>({hours,used:(i+1)*256*1024**2,upload:0,download:(i+1)*256*1024**2,observed:300000,start:Date.now()-hours*3600000,end:Date.now(),slots:Array.from({length:hours},(_,j)=>({at:Date.now()-(hours-j)*3600000,bytes:j===hours-1?(i+1)*256*1024**2:null}))}));update();
     const panel=await windowFor('panel',390,590);await new Promise(r=>setTimeout(r,250));
     const panelChecks=await panel.webContents.executeJavaScript(`(${async function(){
       const check=(ok,text)=>{if(!ok)throw Error(text);return text;},result=[];
       result.push(check(document.body.textContent.includes('30 GiB'),'remaining traffic is shown in binary units'));
       result.push(check(document.body.textContent.includes('70 GiB')&&document.body.textContent.includes('100 GiB'),'used and total match the response headers'));
-      result.push(check([6,12,24].every(h=>document.getElementById('content').textContent.includes('最近 '+h+' 小时')),'6/12/24 hour traffic windows are all displayed'));
-      result.push(check(['256 MiB','512 MiB','768 MiB','已采样 0 小时 5 分钟'].every(t=>document.getElementById('content').textContent.includes(t)),'window totals and actual sampling coverage are shown'));
+      result.push(check([6,12,24].every(h=>document.querySelector('[data-traffic-hours="'+h+'"]')),'6/12/24 hour traffic selectors are displayed'));
+      for(const [hours,total] of [[6,'256 MiB'],[12,'512 MiB'],[24,'768 MiB']]){document.querySelector('[data-traffic-hours="'+hours+'"]').click();result.push(check(document.querySelectorAll('.chart .bar').length===hours&&document.querySelector('.chart-total').textContent===total&&document.querySelector('[data-traffic-hours="'+hours+'"]').getAttribute('aria-pressed')==='true','traffic chart switches to '+hours+' hourly slots and its own total'));}
+      result.push(check(document.getElementById('content').textContent.includes('已采样 0 小时 5 分钟'),'actual sample coverage remains visible'));
+      result.push(check(document.querySelectorAll('.bar.missing').length===23&&!document.querySelector('.bar:not(.missing)').title.includes('tokens'),'unobserved hours stay missing and chart tooltips use traffic units'));
       result.push(check(!document.body.textContent.includes('Token 活动'),'traffic is not mislabeled as Tokens'));
       result.push(check(document.querySelector('[data-tab="sessions"]').hidden,'irrelevant session controls are hidden'));
       result.push(check(document.getElementById('sessions-shortcut').getBoundingClientRect().width===0,'conversation shortcut is not visually rendered'));

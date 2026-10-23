@@ -10,6 +10,7 @@ function fixture(name){const base=path.resolve('work/traffic-history-tests');fs.
 test('traffic windows distinguish 6, 12 and 24 hours and exclude partial boundary intervals',()=>{
  const segments=[1,7,13,25].map(h=>({start:at-h*3600000,end:at-h*3600000+5*minute,upload:10,download:20}));
  assert.deepEqual(summaries(segments,at).map(s=>s.used),[30,60,90]);
+ for(const row of summaries(segments,at)){assert.equal(row.slots.length,row.hours);assert.equal(row.slots.reduce((n,b)=>n+(b.bytes||0),0),row.used);assert.ok(row.slots.some(b=>b.bytes===null));}
  assert.deepEqual(summaries(segments,at).map(s=>s.observed),[5*minute,10*minute,15*minute]);
  assert.equal(summaries([{start:at-6*3600000-minute,end:at-6*3600000+minute,upload:10,download:0}],at)[0].observed,0);
 });
