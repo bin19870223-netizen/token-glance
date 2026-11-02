@@ -9,6 +9,7 @@ const {DeepSeekMonitor}=require('./deepseek.cjs');
 const {AppUpdater}=require('./updater.cjs');
 const {TrafficAlerts}=require('./traffic-alerts.cjs');
 const {displayIdentity,resolveDisplay}=require('./display-target.cjs');
+const {SettingsStore}=require('./settings-store.cjs');
 const {maintainTopmost}=require('./topmost.cjs');
 const {monitorFullscreen}=require('./fullscreen.cjs');
 const {defaults,sanitizeSettings,settingsPages,resetSettings,snapshot,sampleUsage,dockBounds,panelBounds}=require('./model.cjs');
@@ -28,7 +29,8 @@ app.setAppUserModelId('AgentHUD.Windows');
 const settingsPath=path.join(runtime,'settings.json');
 const usagePath=path.join(runtime,'usage.json');
 function readJSON(file,fallback){try{return JSON.parse(fs.readFileSync(file,'utf8'));}catch{return fallback;}}
-let settings=sanitizeSettings(readJSON(settingsPath,{}));
+const settingsStore=new SettingsStore(settingsPath,sanitizeSettings,fs);
+let settings;try{settings=settingsStore.load();}catch{logStartup('settings-unavailable: original files retained');app.exit(1);}
 let codex=readJSON(usagePath,null);
 if(codex) codex={...codex,connected:false,stale:true};
 let dockContentWidth=null;
@@ -77,7 +79,7 @@ function otherProvider(id){
 function allProviders(){return {codex:codex || {id:'codex',name:'Codex',connected:false,quotas:[],buckets:[],sessions:[],primary:null,lifetimeTokens:null},claude:otherProvider('claude'),deepseek:deepseek.configured()?deepseek.data:otherProvider('deepseek'),airport:traffic.data};}
 function state(){return {trafficAlerts:{...trafficAlerts.view(),quiet:fullscreenMonitor?.shouldDeferNotifications()!==false,error:trafficObserveError||noticeError},displayMissing:settings.displayId!==null&&!resolveDisplay(screen.getAllDisplays(),settings),appVersion:updater.current,updates:updater.state,deepseek:{configured:deepseek.configured(),loading:deepseek.loading||deepseekSaving},traffic:{configured:traffic.configured(),loading:traffic.loading||trafficSaving},settings,providers:allProviders(),pinned,panelAgent,refreshing,connectionError,hotkeyError,dark:settings.theme==='dark'||settings.theme==='system'&&nativeTheme.shouldUseDarkColors,displays:screen.getAllDisplays().map(d=>({id:d.id,name:d.label || `显示器 ${d.id}`,primary:d.id===screen.getPrimaryDisplay().id})),sources:{claude:!!sources.claude,deepseek:!!sources.deepseek}};}
 function broadcast(){const value=state();for(const w of [dock,panel,preferences])if(w&&!w.isDestroyed())w.webContents.send('state',value);updateTray();}
-function saveSettings(){fs.writeFileSync(settingsPath+'.tmp',JSON.stringify(settings,null,2));fs.renameSync(settingsPath+'.tmp',settingsPath);}
+function saveSettings(){settingsStore.save(settings);}
 function logStartup(event){
   const file=path.join(runtime,'logs','startup.log');
   try{

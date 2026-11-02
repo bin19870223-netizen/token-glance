@@ -20,6 +20,7 @@
 
 | 位置 | 内容 | 是否应公开 |
 | --- | --- | --- |
+| `runtime/settings.json.bak`、设置暂存文件 | 最新有效设置备份与中断恢复记录，不含 API Key；内部保存序号不进入界面状态 | 否 |
 | `runtime/settings.json` | 偏好、监控进程名称、显示器 ID | 否 |
 | `runtime/usage.json` | 聚合额度、按日用量、计划类型、最近约 25 小时的累计 Token 数字采样及账号标识摘要 | 否 |
 | `runtime/sources.json` | 用户选择的 JSON 文件路径 | 否 |
