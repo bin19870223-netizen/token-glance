@@ -1,6 +1,6 @@
 const defaults = Object.freeze({
   theme:'dark', palette:'mint', customColor:'#73d9bd', edge:'left', position:0.48,
-  displayId:null, edgeGap:8, showNumbers:true, showRing:true, showShort:true,
+  displayId:null, displayTarget:null, edgeGap:8, showNumbers:true, showRing:true, showShort:true,
   ringSize:32, fontScale:100, opacity:96, glass:true, hoverDelay:220,
   alwaysOnTop:true, reducedMotion:false, refreshSeconds:60, alertEnabled:false,
   alertThreshold:15, startupMode:'manual', launchAtLogin:false, hotkey:'Control+Shift+Space',
@@ -9,7 +9,7 @@ const defaults = Object.freeze({
 });
 const settingsPages={
   appearance:{label:'外观',keys:['theme','palette','customColor','opacity','fontScale','glass','reducedMotion']},
-  layout:{label:'屏幕与布局',keys:['edge','position','displayId','edgeGap','ringSize','hoverDelay','alwaysOnTop']},
+  layout:{label:'屏幕与布局',keys:['edge','position','displayId','displayTarget','edgeGap','ringSize','hoverDelay','alwaysOnTop']},
   display:{label:'显示内容',keys:['showRing','showNumbers','showShort','chartDays']},
   startup:{label:'启动与运行',keys:['startupMode','launchAtLogin','watchProcesses']},
   sources:{label:'数据源',keys:['agents','refreshSeconds','showTraffic']},
@@ -46,6 +46,8 @@ function sanitizeSettings(input = {}) {
   if(/^#[0-9a-f]{6}$/i.test(input.customColor || '')) s.customColor=input.customColor;
   if(typeof input.hotkey==='string' && input.hotkey.length<70 && /^(Control|Alt|Shift|Super|CommandOrControl|[A-Za-z0-9+ ])+$/.test(input.hotkey)) s.hotkey=input.hotkey;
   if(Number.isInteger(input.displayId)) s.displayId=input.displayId;
+  const target=input.displayTarget;
+  if(target&&typeof target.label==='string'&&target.label.length<=256&&typeof target.internal==='boolean'&&['x','y','width','height'].every(k=>Number.isFinite(target[k])&&Math.abs(target[k])<=100000)&&target.width>0&&target.height>0)s.displayTarget={label:target.label,x:target.x,y:target.y,width:target.width,height:target.height,internal:target.internal};
   if([1,7,30].includes(input.chartDays)) s.chartDays=input.chartDays;
   if(Array.isArray(input.agents)) s.agents=['codex', 'claude', 'deepseek'].filter(id=>input.agents.includes(id));
   if(!s.agents.length) s.agents=['codex'];

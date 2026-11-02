@@ -8,6 +8,7 @@ const {TrafficMonitor}=require('./traffic.cjs');
 const {DeepSeekMonitor}=require('./deepseek.cjs');
 const {AppUpdater}=require('./updater.cjs');
 const {TrafficAlerts}=require('./traffic-alerts.cjs');
+const {displayIdentity,resolveDisplay}=require('./display-target.cjs');
 const {maintainTopmost}=require('./topmost.cjs');
 const {monitorFullscreen}=require('./fullscreen.cjs');
 const {defaults,sanitizeSettings,settingsPages,resetSettings,snapshot,sampleUsage,dockBounds,panelBounds}=require('./model.cjs');
@@ -74,7 +75,7 @@ function otherProvider(id){
   }catch{return {id,name:names[id],connected:false,stale:true,quotas:[],buckets:[],sessions:[],primary:null,lifetimeTokens:null};}
 }
 function allProviders(){return {codex:codex || {id:'codex',name:'Codex',connected:false,quotas:[],buckets:[],sessions:[],primary:null,lifetimeTokens:null},claude:otherProvider('claude'),deepseek:deepseek.configured()?deepseek.data:otherProvider('deepseek'),airport:traffic.data};}
-function state(){return {trafficAlerts:{...trafficAlerts.view(),quiet:fullscreenMonitor?.shouldDeferNotifications()!==false,error:trafficObserveError||noticeError},appVersion:updater.current,updates:updater.state,deepseek:{configured:deepseek.configured(),loading:deepseek.loading||deepseekSaving},traffic:{configured:traffic.configured(),loading:traffic.loading||trafficSaving},settings,providers:allProviders(),pinned,panelAgent,refreshing,connectionError,hotkeyError,dark:settings.theme==='dark'||settings.theme==='system'&&nativeTheme.shouldUseDarkColors,displays:screen.getAllDisplays().map(d=>({id:d.id,name:d.label || `显示器 ${d.id}`,primary:d.id===screen.getPrimaryDisplay().id})),sources:{claude:!!sources.claude,deepseek:!!sources.deepseek}};}
+function state(){return {trafficAlerts:{...trafficAlerts.view(),quiet:fullscreenMonitor?.shouldDeferNotifications()!==false,error:trafficObserveError||noticeError},displayMissing:settings.displayId!==null&&!resolveDisplay(screen.getAllDisplays(),settings),appVersion:updater.current,updates:updater.state,deepseek:{configured:deepseek.configured(),loading:deepseek.loading||deepseekSaving},traffic:{configured:traffic.configured(),loading:traffic.loading||trafficSaving},settings,providers:allProviders(),pinned,panelAgent,refreshing,connectionError,hotkeyError,dark:settings.theme==='dark'||settings.theme==='system'&&nativeTheme.shouldUseDarkColors,displays:screen.getAllDisplays().map(d=>({id:d.id,name:d.label || `显示器 ${d.id}`,primary:d.id===screen.getPrimaryDisplay().id})),sources:{claude:!!sources.claude,deepseek:!!sources.deepseek}};}
 function broadcast(){const value=state();for(const w of [dock,panel,preferences])if(w&&!w.isDestroyed())w.webContents.send('state',value);updateTray();}
 function saveSettings(){fs.writeFileSync(settingsPath+'.tmp',JSON.stringify(settings,null,2));fs.renameSync(settingsPath+'.tmp',settingsPath);}
 function logStartup(event){
@@ -94,7 +95,15 @@ function applyStartup(){
     child.on('error',()=>{connectionError='启动监听器未能启动';broadcast();});child.unref();
   }
 }
-function display(){return screen.getAllDisplays().find(d=>d.id===settings.displayId)||screen.getPrimaryDisplay();}
+function display(){return resolveDisplay(screen.getAllDisplays(),settings)||screen.getPrimaryDisplay();}
+function reconcileDisplay(){
+  const selected=resolveDisplay(screen.getAllDisplays(),settings);
+  if(selected&&settings.displayId!==null){
+    const identity=displayIdentity(selected);
+    if(settings.displayId!==selected.id||JSON.stringify(settings.displayTarget)!==JSON.stringify(identity)){settings.displayId=selected.id;settings.displayTarget=identity;saveSettings();}
+  }
+}
+function displaysChanged(){reconcileDisplay();setBounds();broadcast();}
 function placeWindow(window,bounds){const old=window.getBounds();if(Object.keys(bounds).some(key=>old[key]!==bounds[key]))window.setBounds(bounds);}
 function setBounds(){
   if(!dock||dock.isDestroyed())return;
@@ -116,7 +125,7 @@ function secureWindow(options,view){
 }
 function createDock(){
   dock=secureWindow({title:'Token Glance · 贴边用量',...dockBounds(display().workArea,settings,settings.agents.length+(settings.showTraffic?1:0),dockContentWidth),frame:false,transparent:true,resizable:false,skipTaskbar:true,hasShadow:false,alwaysOnTop:false},'dock');
-  dock.once('ready-to-show',()=>{dock.showInactive();logStartup('dock-visible');});
+  dock.once('ready-to-show',()=>{dock.showInactive();logStartup('dock-visible');logStartup('dock-display actual='+screen.getDisplayMatching(dock.getBounds()).id+' preferred='+settings.displayId);});
   dock.on('show',()=>{topmostGuard?.refresh();flushNotices();});
   dock.on('closed',()=>{dock=null;fullscreenMonitor?.setWindows?.(settings.alwaysOnTop?[dock,panel]:[]);});
   setBounds();
@@ -199,7 +208,8 @@ function updateSettings(next){
 ipcMain.handle('state',event=>{requireTrusted(event);return state();});
 ipcMain.handle('settings',(event,patch)=>{
   requireTrusted(event);if(event.sender!==preferences?.webContents&&Object.keys(patch).some(k=>k!=='chartDays'))throw new Error('Settings window required');
-  return updateSettings(sanitizeSettings({...settings,...patch}));
+  const selected=Object.hasOwn(patch,'displayId')?screen.getAllDisplays().find(d=>d.id===patch.displayId):null;
+  return updateSettings(sanitizeSettings({...settings,...patch,...(selected?{displayTarget:displayIdentity(selected)}:{})}));
 });
 ipcMain.handle('action',async(event,name,payload)=>{
   requireTrusted(event);
@@ -267,7 +277,7 @@ ipcMain.handle('action',async(event,name,payload)=>{
   else if(name==='drag-end'&&dragState){
     const p=screen.getCursorScreenPoint(),d=screen.getDisplayNearestPoint(p),a=d.workArea;
     const edges={left:Math.abs(p.x-a.x),right:Math.abs(p.x-a.x-a.width),top:Math.abs(p.y-a.y),bottom:Math.abs(p.y-a.y-a.height)};
-    settings.edge=Object.keys(edges).sort((x,y)=>edges[x]-edges[y])[0];settings.displayId=d.id;
+    settings.edge=Object.keys(edges).sort((x,y)=>edges[x]-edges[y])[0];settings.displayId=d.id;settings.displayTarget=displayIdentity(d);
     const vertical=['left','right'].includes(settings.edge);const bounds=dockBounds(a,settings,settings.agents.length+(settings.showTraffic?1:0),dockContentWidth);
     settings.position=Math.max(0,Math.min(1,vertical?(dock.getBounds().y-a.y)/(a.height-bounds.height):(dock.getBounds().x-a.x)/(a.width-bounds.width)));
     dragState=null;saveSettings();setBounds();broadcast();
@@ -296,14 +306,15 @@ else{
     tray=new Tray(icon);tray.on('click',()=>panel?.isVisible()?closePanel():showPanel('codex',true));tray.on('double-click',showSettings);
     fullscreenMonitor=monitorFullscreen(path.join(runtime,'FullscreenState.exe'),()=>{topmostGuard?.refresh();flushNotices();});
     topmostGuard=maintainTopmost(()=>[dock,panel],()=>settings.alwaysOnTop&&!fullscreenMonitor.shouldYield());
-    saveSettings();applyStartup();createDock();applyHotkey();updateTray();refresh();
+    reconcileDisplay();saveSettings();applyStartup();createDock();applyHotkey();updateTray();refresh();
     refreshTraffic();refreshDeepSeek();trafficTimer=setInterval(()=>{refreshTraffic();refreshDeepSeek();},300000);trafficTimer.unref();
     updateInitialTimer=setTimeout(()=>{if(settings.autoUpdate)updater.check(true);},20000);
     updateTimer=setInterval(()=>{if(settings.autoUpdate)updater.check(true);},6*3600000);updateTimer.unref();
     noticeTimer=setInterval(()=>{flushNotices().then(()=>broadcast());},15000);noticeTimer.unref();
     nativeTheme.on('updated',broadcast);
-    screen.on('display-metrics-changed',()=>{setBounds();broadcast();});
-    screen.on('display-removed',()=>{setBounds();broadcast();});
+    screen.on('display-metrics-changed',displaysChanged);
+    screen.on('display-removed',displaysChanged);
+    screen.on('display-added',displaysChanged);
     if(!process.argv.includes('--background'))showSettings();
     logStartup('ready');
   }).catch(error=>{logStartup(`failed ${error.name}`);app.exit(1);});

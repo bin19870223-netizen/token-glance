@@ -21,13 +21,13 @@ function fixture(){
   const preferences=window(),dock=window(),panel=window();Object.assign(dock,{isVisible:()=>true,getBounds:()=>({x:0,y:0,width:60,height:60}),setBounds(){},setAlwaysOnTop(){},moveTop(){}});
   Object.assign(panel,{isVisible:()=>true,getBounds:()=>({x:80,y:0,width:100,height:100}),close:()=>closes.push(true)});
   const fakeApp={setPath(){},setAppLogsPath(){},setName(){},setAppUserModelId(){},commandLine:{appendSwitch(){}},requestSingleInstanceLock:()=>false,quit(){},on(){},setLoginItemSettings:value=>login.push(value)};
-  const area={x:0,y:0,width:1920,height:1040},display={id:1,workArea:area};
+  const area={x:0,y:0,width:1920,height:1040},display={id:1,label:'Primary',internal:false,bounds:area,workArea:area};
   const electron={app:fakeApp,ipcMain:{handle:(name,fn)=>handlers[name]=fn},screen:{getAllDisplays:()=>[display],getPrimaryDisplay:()=>display,getCursorScreenPoint:()=>cursor},nativeTheme:{shouldUseDarkColors:false},globalShortcut:{unregisterAll(){},register:key=>{hotkeys.push(key);return true;}},dialog:{showMessageBox:async(owner,options)=>{messages.push({owner,options});return {response};}}};
   const fakeFS={mkdirSync(){},readFileSync:file=>{if(!files.has(file))throw Error('missing');return files.get(file);},writeFileSync:(file,text)=>files.set(file,text),renameSync:(from,to)=>{files.set(to,files.get(from));files.delete(from);}};
-  const context=vm.createContext({__dirname:root,process:{argv:[],execPath:'electron.exe',env:{}},fixture:{preferences,dock,panel},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},require:name=>name==='electron'?electron:name==='node:fs'?fakeFS:name==='./traffic-alerts.cjs'?{TrafficAlerts:class{view(){return {pending:0,recent:[]};}reset(){}}}:name==='./updater.cjs'?{AppUpdater:class{constructor(){this.current='0.1.2';this.state={status:'idle'};}}}:name==='./deepseek.cjs'?require('../src/deepseek.cjs'):name==='./traffic.cjs'?require('../src/traffic.cjs'):name==='./codex.cjs'?{CodexClient:class{}}:name==='./fullscreen.cjs'?require('../src/fullscreen.cjs'):name==='./topmost.cjs'?require('../src/topmost.cjs'):name==='./model.cjs'?require('../src/model.cjs'):require(name)});
+  const context=vm.createContext({__dirname:root,process:{argv:[],execPath:'electron.exe',env:{}},fixture:{preferences,dock,panel},setTimeout:fn=>{timers.push(fn);return timers.length;},clearTimeout(){},require:name=>name==='electron'?electron:name==='node:fs'?fakeFS:name==='./display-target.cjs'?require('../src/display-target.cjs'):name==='./traffic-alerts.cjs'?{TrafficAlerts:class{view(){return {pending:0,recent:[]};}reset(){}}}:name==='./updater.cjs'?{AppUpdater:class{constructor(){this.current='0.1.2';this.state={status:'idle'};}}}:name==='./deepseek.cjs'?require('../src/deepseek.cjs'):name==='./traffic.cjs'?require('../src/traffic.cjs'):name==='./codex.cjs'?{CodexClient:class{}}:name==='./fullscreen.cjs'?require('../src/fullscreen.cjs'):name==='./topmost.cjs'?require('../src/topmost.cjs'):name==='./model.cjs'?require('../src/model.cjs'):require(name)});
   context.fixture.monitor={shouldYield:()=>yieldFullscreen,shouldDeferNotifications:()=>yieldFullscreen};
   vm.runInContext(source+'\npreferences=fixture.preferences;dock=fixture.dock;fullscreenMonitor=fixture.monitor;',context);
-  return {handlers,files,settingsFile,usageFile,sourcesFile,messages,login,hotkeys,preferences,dock,timers,closes,run:code=>vm.runInContext(code,context),cursor:point=>cursor=point,event:{sender:preferences.webContents,senderFrame:preferences.webContents.mainFrame},confirm:(choice=2)=>response=choice,close:()=>destroyed=true,yieldFullscreen:()=>yieldFullscreen=true};
+  return {setDisplays:items=>electron.screen.getAllDisplays=()=>items,handlers,files,settingsFile,usageFile,sourcesFile,messages,login,hotkeys,preferences,dock,timers,closes,run:code=>vm.runInContext(code,context),cursor:point=>cursor=point,event:{sender:preferences.webContents,senderFrame:preferences.webContents.mainFrame},confirm:(choice=2)=>response=choice,close:()=>destroyed=true,yieldFullscreen:()=>yieldFullscreen=true};
 }
 test('Windows login startup explicitly enables approval and retains background launch arguments',()=>{
   const f=fixture();f.run("settings.startupMode='system';applyStartup();");
@@ -133,4 +133,14 @@ test('update operations require the settings window main frame',async()=>{
   await assert.rejects(f.handlers.action({sender:f.dock.webContents,senderFrame:f.dock.webContents.mainFrame},name),/Settings window required/);
   await assert.rejects(f.handlers.action({...f.event,senderFrame:{}},name),/Untrusted sender/);
  }
+});
+
+
+test('monitor selection persists and returns to the secondary display when it appears with a new ID',async()=>{
+ const f=fixture(),primary={id:1,label:'Primary',internal:false,bounds:{x:0,y:0,width:1920,height:1080},workArea:{x:0,y:0,width:1920,height:1040}},secondary={id:2,label:'LG HDR 4K',internal:false,bounds:{x:1920,y:0,width:1440,height:2560},workArea:{x:1920,y:0,width:1440,height:2520}};
+ f.setDisplays([primary,secondary]);await f.handlers.settings(f.event,{displayId:2});
+ assert.equal(JSON.parse(f.files.get(f.settingsFile)).displayTarget.label,'LG HDR 4K');
+ f.setDisplays([primary]);f.run('displaysChanged()');assert.equal(f.run('display().id'),1);assert.equal(f.run('settings.displayId'),2);assert.equal(f.run('state().displayMissing'),true);
+ f.setDisplays([primary,{...secondary,id:99}]);f.run('displaysChanged()');assert.equal(f.run('display().id'),99);assert.equal(f.run('settings.displayId'),99);assert.equal(f.run('state().displayMissing'),false);
+ assert.equal(JSON.parse(f.files.get(f.settingsFile)).startupMode,'agents');
 });
