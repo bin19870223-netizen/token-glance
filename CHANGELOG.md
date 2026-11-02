@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.4 — Experimental preview (2026-11-02)
 
 - 设置使用同步落盘、原子替换与最新有效备份；重启恢复最近保存的设置，文件损坏时不静默覆盖为默认值。
 

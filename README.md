@@ -6,9 +6,9 @@
 
 平时是一枚贴边圆环，悬停展开额度和 Token 活动，点击即可固定面板。需要时看一眼，用完继续工作。
 
-Windows 10 / 11 · MIT · **v0.1.3 实验性源码预览**
+Windows 10 / 11 · MIT · **v0.1.4 实验性源码预览**
 
-[获取源码](https://github.com/bin19870223-netizen/token-glance/releases/tag/v0.1.3) · [更新记录](CHANGELOG.md) · [反馈问题](https://github.com/bin19870223-netizen/token-glance/issues)
+[获取源码](https://github.com/bin19870223-netizen/token-glance/releases/tag/v0.1.4) · [更新记录](CHANGELOG.md) · [反馈问题](https://github.com/bin19870223-netizen/token-glance/issues)
 
 ![贴边用量条与浅色、深色用量概览](docs/images/overview.png)
 
@@ -121,3 +121,11 @@ DeepSeek 官方 API 余额：在「设置 → 数据源 → DeepSeek · 官方 A
 维护者发布：先同步源码与版本号，再发布与 package.json 对应的 vX.Y.Z Release；release-update 工作流完成测试后上传 token-glance-update.json 附件。也可用 npm run build:update 本地生成附件。首个包含更新器的版本仍需手动升级，之后才能使用应用内更新。这里只信任本仓库的公开发布附件和 GitHub 返回的 SHA-256，不提供独立代码签名验证。
 
 机场流量告警在「提醒与快捷键」中启用：30 分钟观测增量达到 20 GiB、套餐已用达到 80% / 95% 时记录并提醒。魔兽世界处于前台、全屏窗口或系统不接受通知时先静默保存，返回桌面后合并成无声系统通知。告警不会打开应用窗口或切换焦点；告警记录仅存本机，Token Glance 退出时监控停止。
+
+### 升级到 v0.1.4
+
+本版更新原生游戏静默检测程序。从公开 v0.1.3 升级时请下载源码包，退出 Token Glance 与监听器，保留 runtime 中的设置、采样和加密密钥，覆盖源码后运行 npm ci、npm run build:watcher 再启动。原生检测程序已经匹配的安装可以使用应用内更新。旧的独立计划任务不会由软件自动停用，已有旧任务的用户需自行确认后停用，避免重复监控。
+
+显示器选择现在同时记住屏幕名称和布局；副屏暂未就绪时保留目标，连接后自动恢复。设置同步保存到主文件和有效备份；中断时恢复最新有效记录，不能恢复时保留文件并退出，不用默认值覆盖。
+
+旧版只保存数字屏幕 ID：首次升级后请在「屏幕与布局」确认一次目标屏幕，之后会同时记住名称和布局。

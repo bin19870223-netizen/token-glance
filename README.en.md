@@ -6,9 +6,9 @@
 
 A small ring stays docked to the edge. Hover to see quota and Token activity, or click to pin the panel while you work.
 
-Windows 10 / 11 · MIT · **v0.1.3 experimental source preview**
+Windows 10 / 11 · MIT · **v0.1.4 experimental source preview**
 
-[Get the source](https://github.com/bin19870223-netizen/token-glance/releases/tag/v0.1.3) · [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/bin19870223-netizen/token-glance/issues)
+[Get the source](https://github.com/bin19870223-netizen/token-glance/releases/tag/v0.1.4) · [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/bin19870223-netizen/token-glance/issues)
 
 ![Edge dock and usage panels in light and dark themes](docs/images/overview.png)
 
@@ -117,3 +117,11 @@ DeepSeek API balance: enter your official API key locally under Settings → Dat
 Automatic updates: Settings → About → Software updates. The app checks this repository's GitHub Releases (including previews) after startup and every six hours, downloads compatible bundles and waits for Restart and update. Settings, usage records and encrypted keys remain in runtime. Runtime changes or source-only releases require a manual upgrade. Old program files are backed up under runtime/updates.
 
 For maintainers, publish a vX.Y.Z Release matching package.json after pushing the source. The release-update workflow tests and uploads token-glance-update.json; npm run build:update can generate it locally. The first updater-enabled version requires a manual upgrade. Update authenticity relies on this GitHub repository, HTTPS and GitHub's asset SHA-256, not independent code signing.
+
+### Upgrading to v0.1.4
+
+This release changes the native game-quiet detector. Users of the public v0.1.3 should use the source ZIP, quit the app and watcher, preserve runtime settings/samples/encrypted keys, update the source and run npm ci and npm run build:watcher before restarting. In-app updates work when the native runtime already matches. Legacy independent scheduled tasks are not automatically changed; explicitly disable any old duplicate monitor after confirming the new one works.
+
+Monitor identity survives ID changes and late connections. Settings use flushed atomic files and a latest-valid backup; unrecoverable existing files are preserved instead of being silently replaced by defaults.
+
+Older releases stored only a numeric monitor ID. Confirm the target once under Screen and layout after the first upgrade; subsequent starts retain the monitor name and geometry.
