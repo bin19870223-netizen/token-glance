@@ -40,7 +40,7 @@ app.whenReady().then(async()=>{
     await delay(1250);const recovered=inspect();
     check(above(recovered,0,2)&&above(recovered,1,0),'occlusion request recovers dock and panel in correct native z-order');
     check((recovered.styles[ids[0]]&8)!==0&&(recovered.styles[ids[1]]&8)!==0,'native Windows topmost flags are retained');
-    check(recovered.foreground===before.foreground,'recovery preserves foreground keyboard focus');
+    check(recovered.foreground===before.foreground,'recovery preserves foreground keyboard focus (before='+before.foreground+', after='+recovered.foreground+', test windows='+ids.join(',')+')');
     let restores=0;
     nativeMonitor=monitorFullscreen(path.resolve(__dirname,'../runtime/FullscreenState.exe'),()=>guard.refresh(),spawn,()=>{restores++;guard.refresh();});
     nativeMonitor.setWindows([dock,panel]);

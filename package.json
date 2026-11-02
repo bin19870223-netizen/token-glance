@@ -19,6 +19,6 @@
     "build:update": "node scripts/build-update.cjs"
   },
   "devDependencies": {
-    "electron": "44.7.1"
+    "electron": "44.10.1"
   }
 }

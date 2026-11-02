@@ -2,6 +2,8 @@
 
 ## 0.1.4 — Experimental preview (2026-11-02)
 
+- Upgrade Electron to 44.10.1 and its download dependency undici to 7.30.1 to resolve current high-severity advisories. This release requires a one-time runtime/native-helper update from public v0.1.3.
+
 - 设置使用同步落盘、原子替换与最新有效备份；重启恢复最近保存的设置，文件损坏时不静默覆盖为默认值。
 
 - 记住显示器名称与布局，恢复重启后变化的屏幕 ID；目标屏幕暂未就绪时保留选择，并在接入后自动移回。

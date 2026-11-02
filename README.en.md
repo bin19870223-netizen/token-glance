@@ -125,3 +125,5 @@ This release changes the native game-quiet detector. Users of the public v0.1.3 
 Monitor identity survives ID changes and late connections. Settings use flushed atomic files and a latest-valid backup; unrecoverable existing files are preserved instead of being silently replaced by defaults.
 
 Older releases stored only a numeric monitor ID. Confirm the target once under Screen and layout after the first upgrade; subsequent starts retain the monitor name and geometry.
+
+This release also upgrades Electron to 44.10.1 and fixes its download dependency security advisories. Older installations must refresh Node dependencies, not just replace src.
